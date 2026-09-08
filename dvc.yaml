@@ -1,0 +1,100 @@
+# Pipeline reproductible. `dvc repro` ne relance que les étapes dont une dépendance
+# (code, données ou paramètre de params.yaml) a réellement changé.
+#
+# Attention : l'étape `experiments` prend ~40 min (11 modèles x 5 folds, dont du deep
+# learning). Elle est reprenable : les prédictions out-of-fold déjà calculées sont
+# conservées sur disque et ignorées au relancement.
+
+stages:
+
+  ablation:
+    desc: Diagnostic — 4 jeux de features comparés à modèle constant
+    cmd: python scripts/exp_ablation.py
+    deps:
+      - scripts/exp_ablation.py
+      - data/raw/default_of_credit_card_clients.xls
+    outs:
+      - reports/ablation_results.csv:
+          cache: false
+
+  experiments:
+    desc: Comparaison de 11 modèles + tuning (prédictions out-of-fold)
+    cmd: python scripts/run_experiments.py
+    deps:
+      - scripts/run_experiments.py
+      - src/data_prep.py
+      - data/raw/default_of_credit_card_clients.xls
+    params:
+      - cv
+      - tuning
+      - split
+    outs:
+      - reports/oof
+      - reports/best_params.json:
+          cache: false
+      - reports/model_ranking.csv:
+          cache: false
+      - reports/blend_ranking.csv:
+          cache: false
+
+  train:
+    desc: Entraînement du modèle retenu + enregistrement MLflow
+    cmd: python scripts/train_final.py
+    deps:
+      - scripts/train_final.py
+      - src/data_prep.py
+      - src/tracking.py
+      - data/raw/default_of_credit_card_clients.xls
+    params:
+      - final_model
+      - split
+      - cv
+      - threshold
+    outs:
+      - models/final_model.joblib
+      - models/model_card.json:
+          cache: false
+
+  evaluate:
+    desc: Évaluation sur le test set + seuils par coût métier
+    cmd: python scripts/final_eval.py
+    deps:
+      - scripts/final_eval.py
+      - src/data_prep.py
+      - reports/best_params.json
+      - data/raw/default_of_credit_card_clients.xls
+    params:
+      - threshold
+      - split
+    metrics:
+      - reports/final_evaluation.json:
+          cache: false
+    outs:
+      - reports/cost_thresholds.csv:
+          cache: false
+
+  report:
+    desc: Génération du rapport PDF complet
+    cmd: python scripts/build_report.py
+    deps:
+      - scripts/build_report.py
+      - reports/model_ranking.csv
+      - reports/blend_ranking.csv
+      - reports/ablation_results.csv
+      - reports/cost_thresholds.csv
+      - reports/final_evaluation.json
+      - reports/best_params.json
+      - reports/figures/notebook
+    outs:
+      - reports/rapport_pipeline_credit_default.pdf:
+          cache: false
+
+plots:
+  - reports/model_ranking.csv:
+      x: model
+      y: pr_auc
+      title: PR-AUC par modèle
+  - reports/ablation_results.csv:
+      x: features
+      y: pr_auc
+      title: Effet du jeu de features

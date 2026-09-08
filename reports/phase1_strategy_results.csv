@@ -1,0 +1,16 @@
+model,imbalance_strategy,pr_auc,f1,recall,precision,roc_auc
+XGBoost,class_weight,0.5524,0.5332,0.6086,0.4745,0.7752
+XGBoost,none,0.5488,0.4782,0.3743,0.6622,0.7779
+RandomForest,none,0.5463,0.4841,0.3844,0.6538,0.7734
+RandomForest,class_weight,0.5443,0.4669,0.3616,0.6588,0.7743
+XGBoost,random_oversampling,0.5442,0.5342,0.5954,0.4844,0.7730
+RandomForest,random_undersampling,0.5364,0.5273,0.6521,0.4426,0.7758
+RandomForest,random_oversampling,0.5357,0.5096,0.4436,0.5988,0.7729
+XGBoost,random_undersampling,0.5300,0.5135,0.6636,0.4187,0.7714
+XGBoost,smotenc,0.5297,0.5051,0.4538,0.5697,0.7670
+RandomForest,smotenc,0.5240,0.5096,0.4570,0.5761,0.7642
+LogisticRegression,none,0.5233,0.4577,0.3579,0.6353,0.7611
+LogisticRegression,random_oversampling,0.5216,0.5270,0.6350,0.4505,0.7623
+LogisticRegression,class_weight,0.5214,0.5266,0.6338,0.4505,0.7621
+LogisticRegression,random_undersampling,0.5189,0.5274,0.6346,0.4513,0.7611
+LogisticRegression,smotenc,0.5011,0.5254,0.6029,0.4657,0.7453

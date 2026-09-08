@@ -1,9 +1,12 @@
 # Environnement virtuel
 .venv/
+venv/
 
 # Cache Python
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -11,3 +14,19 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Artefacts d'entraînement CatBoost (logs temporaires, régénérés à chaque run)
+catboost_info/
+
+# --- Données et artefacts suivis par DVC (pas par git) -----------------------
+# Les fichiers .dvc correspondants SONT versionnés par git : ils contiennent le
+# hash du contenu, ce qui permet de retrouver la version exacte d'un artefact.
+/data/raw/default_of_credit_card_clients.xls
+/reports/oof/
+/models/
+/mlflow.db
+/mlartifacts

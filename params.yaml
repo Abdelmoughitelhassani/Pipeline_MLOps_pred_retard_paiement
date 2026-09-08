@@ -1,0 +1,47 @@
+# Paramètres du pipeline — suivis par DVC.
+# Modifier une valeur ici invalide les étapes concernées : `dvc repro` les relance seules.
+
+data:
+  raw_file: data/raw/default_of_credit_card_clients.xls
+  # Codes non documentés dans la doc UCI, fusionnés avec la catégorie « autre » du schéma
+  education_remap: {0: 4, 5: 4, 6: 4}
+  marriage_remap: {0: 3}
+
+split:
+  test_size: 0.20
+  random_state: 42
+  stratify: true
+
+cv:
+  n_splits: 5
+  shuffle: true
+  random_state: 42
+  scoring: average_precision
+
+tuning:
+  n_iter: 20
+  search_cv_folds: 3
+  scoring: average_precision
+
+# Modèle retenu après comparaison de 11 modèles (voir reports/model_ranking.csv).
+# Trouvé par RandomizedSearchCV ; la régularisation forte et le learning_rate bas
+# corrigent le sur-apprentissage des paramètres initiaux (lr=0.1, depth=5).
+final_model:
+  name: xgboost
+  params:
+    n_estimators: 517
+    max_depth: 4
+    learning_rate: 0.010239273411172712
+    subsample: 0.7350460685614512
+    colsample_bytree: 0.8908088595534959
+    min_child_weight: 9
+    gamma: 4.303652916281717
+    reg_alpha: 0.00663086412368092
+    reg_lambda: 0.18871820873117506
+  imbalance_strategy: scale_pos_weight
+
+# Rapports coût(faux négatif) / coût(faux positif) explorés pour le choix du seuil.
+# Seul le rapport importe : la banque n'a pas à chiffrer ses coûts en valeur absolue.
+threshold:
+  cost_ratios: [2, 3, 5, 10, 20]
+  default_ratio: 3

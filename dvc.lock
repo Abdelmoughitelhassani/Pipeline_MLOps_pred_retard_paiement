@@ -1,0 +1,209 @@
+schema: '2.0'
+stages:
+  ablation:
+    cmd: python scripts/exp_ablation.py
+    deps:
+    - path: data/raw/default_of_credit_card_clients.xls
+      hash: md5
+      md5: d8462d5d1296c0d8c9fd2499cb8f9921
+      size: 5540352
+    - path: scripts/exp_ablation.py
+      hash: md5
+      md5: d8f70906a10062064bd97da5af2e3250
+      size: 6880
+    outs:
+    - path: reports/ablation_results.csv
+      hash: md5
+      md5: cad738273cc39ebbec7182d25400cb9b
+      size: 516
+  experiments:
+    cmd: python scripts/run_experiments.py
+    deps:
+    - path: data/raw/default_of_credit_card_clients.xls
+      hash: md5
+      md5: d8462d5d1296c0d8c9fd2499cb8f9921
+      size: 5540352
+    - path: scripts/run_experiments.py
+      hash: md5
+      md5: b647242150f4842e26d280c1aa6aa707
+      size: 16483
+    - path: src/data_prep.py
+      hash: md5
+      md5: 841fd733e7fb91a89c9c9f85252febec
+      size: 8864
+    params:
+      params.yaml:
+        cv:
+          n_splits: 5
+          shuffle: true
+          random_state: 42
+          scoring: average_precision
+        split:
+          test_size: 0.2
+          random_state: 42
+          stratify: true
+        tuning:
+          n_iter: 20
+          search_cv_folds: 3
+          scoring: average_precision
+    outs:
+    - path: reports/best_params.json
+      hash: md5
+      md5: c16a701dfdbff9056ecc6c13349b4b5d
+      size: 875
+    - path: reports/blend_ranking.csv
+      hash: md5
+      md5: 27d3a23cc80699c2a467812a94f86be7
+      size: 4157
+    - path: reports/model_ranking.csv
+      hash: md5
+      md5: 599f126267dbc9de5bb894d158ee721a
+      size: 531
+    - path: reports/oof
+      hash: md5
+      md5: c7fd493931d600070d3b7f070e668ee0.dir
+      size: 2113408
+      nfiles: 11
+  train:
+    cmd: python scripts/train_final.py
+    deps:
+    - path: data/raw/default_of_credit_card_clients.xls
+      hash: md5
+      md5: d8462d5d1296c0d8c9fd2499cb8f9921
+      size: 5540352
+    - path: scripts/train_final.py
+      hash: md5
+      md5: b95a913c29bb9f367d99bc5f524064af
+      size: 6917
+    - path: src/data_prep.py
+      hash: md5
+      md5: 841fd733e7fb91a89c9c9f85252febec
+      size: 8864
+    - path: src/tracking.py
+      hash: md5
+      md5: 1cf8061d9caf6d820f25a8261acfc16f
+      size: 1348
+    params:
+      params.yaml:
+        cv:
+          n_splits: 5
+          shuffle: true
+          random_state: 42
+          scoring: average_precision
+        final_model:
+          name: xgboost
+          params:
+            n_estimators: 517
+            max_depth: 4
+            learning_rate: 0.010239273411172712
+            subsample: 0.7350460685614512
+            colsample_bytree: 0.8908088595534959
+            min_child_weight: 9
+            gamma: 4.303652916281717
+            reg_alpha: 0.00663086412368092
+            reg_lambda: 0.18871820873117506
+          imbalance_strategy: scale_pos_weight
+        split:
+          test_size: 0.2
+          random_state: 42
+          stratify: true
+        threshold:
+          cost_ratios:
+          - 2
+          - 3
+          - 5
+          - 10
+          - 20
+          default_ratio: 3
+    outs:
+    - path: models/final_model.joblib
+      hash: md5
+      md5: 896ea98349da9ffe85522c149e391d74
+      size: 847905
+    - path: models/model_card.json
+      hash: md5
+      md5: 1df8cfa9c7a0890f10faef4372ed1617
+      size: 2640
+  evaluate:
+    cmd: python scripts/final_eval.py
+    deps:
+    - path: data/raw/default_of_credit_card_clients.xls
+      hash: md5
+      md5: d8462d5d1296c0d8c9fd2499cb8f9921
+      size: 5540352
+    - path: reports/best_params.json
+      hash: md5
+      md5: c16a701dfdbff9056ecc6c13349b4b5d
+      size: 875
+    - path: scripts/final_eval.py
+      hash: md5
+      md5: 43f8633fabc2db7ce30c9f187903ec64
+      size: 5054
+    - path: src/data_prep.py
+      hash: md5
+      md5: 841fd733e7fb91a89c9c9f85252febec
+      size: 8864
+    params:
+      params.yaml:
+        split:
+          test_size: 0.2
+          random_state: 42
+          stratify: true
+        threshold:
+          cost_ratios:
+          - 2
+          - 3
+          - 5
+          - 10
+          - 20
+          default_ratio: 3
+    outs:
+    - path: reports/cost_thresholds.csv
+      hash: md5
+      md5: 95a61905cad87088d8adf57127af088d
+      size: 437
+    - path: reports/final_evaluation.json
+      hash: md5
+      md5: 760ee31ae2b68c113ba5563da3d9ecb1
+      size: 1931
+  report:
+    cmd: python scripts/build_report.py
+    deps:
+    - path: reports/ablation_results.csv
+      hash: md5
+      md5: cad738273cc39ebbec7182d25400cb9b
+      size: 516
+    - path: reports/best_params.json
+      hash: md5
+      md5: c16a701dfdbff9056ecc6c13349b4b5d
+      size: 875
+    - path: reports/blend_ranking.csv
+      hash: md5
+      md5: 27d3a23cc80699c2a467812a94f86be7
+      size: 4157
+    - path: reports/cost_thresholds.csv
+      hash: md5
+      md5: 95a61905cad87088d8adf57127af088d
+      size: 437
+    - path: reports/figures/notebook
+      hash: md5
+      md5: c2cc9377b4480826ab7ae003a4d3bf65.dir
+      size: 234175
+      nfiles: 5
+    - path: reports/final_evaluation.json
+      hash: md5
+      md5: 760ee31ae2b68c113ba5563da3d9ecb1
+      size: 1931
+    - path: reports/model_ranking.csv
+      hash: md5
+      md5: 599f126267dbc9de5bb894d158ee721a
+      size: 531
+    - path: scripts/build_report.py
+      hash: md5
+      md5: 534a44d07e5532983a62de06acf74cc6
+      size: 56623
+    outs:
+    - path: reports/rapport_pipeline_credit_default.pdf
+      hash: md5
+      md5: a5a1047b6b5190a3c2f11b57b7438ac8
+      size: 536670

@@ -1,0 +1,51 @@
+blend,k,pr_auc,roc_auc
+lgbm_tuned + xgb_tuned + mlp + gru + rf,5,0.566366658395968,0.7900398515501063
+lgbm_tuned + xgb_tuned + histgb_tuned + mlp + rf,5,0.5662582087161163,0.7896878076390994
+lgbm_tuned + xgb_tuned + mlp + rf,4,0.566249109050041,0.7894983850684083
+lgbm_tuned + xgb_tuned + histgb + mlp + rf,5,0.5662198107920443,0.7895801895382608
+lgbm_tuned + xgb_tuned + catboost + mlp + rf,5,0.5662098131870545,0.7898864209306413
+lgbm_tuned + histgb_tuned + mlp + gru + rf,5,0.5661545837995097,0.7898425382618426
+lgbm_tuned + xgb_tuned + histgb_tuned + gru + rf,5,0.566080324182549,0.7897804051594248
+lgbm_tuned + xgb_tuned + lstm + mlp + rf,5,0.5660129884828581,0.7899868386257256
+lgbm_tuned + xgb_tuned + catboost + mlp,4,0.5659806441981616,0.7902634420364163
+lgbm_tuned + xgb_tuned + mlp + gru + xgb_base,5,0.5659015446214134,0.789659645940177
+lgbm_tuned + xgb_tuned + lstm + rf,4,0.5658850428622236,0.7896720362814992
+lgbm_tuned + xgb_tuned + histgb_tuned + lstm + rf,5,0.5658474396318531,0.7897909613875949
+lgbm_tuned + xgb_tuned + gru + rf,4,0.5658436680764405,0.7896700862765819
+lgbm_tuned + xgb_tuned + catboost + lstm + rf,5,0.5658246429807288,0.7899825002426926
+xgb_tuned + histgb_tuned + mlp + gru + rf,5,0.5658239410114253,0.7897457736767456
+lgbm_tuned + xgb_tuned + catboost + gru + rf,5,0.5657562584584488,0.7899747254168852
+lgbm_tuned + histgb_tuned + lstm + mlp + rf,5,0.5657365242111869,0.789792921470057
+lgbm_tuned + catboost + mlp + gru + rf,5,0.5657290554064698,0.789995021592097
+lgbm_tuned + histgb_tuned + catboost + mlp + rf,5,0.5657268529030122,0.789643330395158
+lgbm_tuned + xgb_tuned + mlp,3,0.5657148560065804,0.7899322132941781
+lgbm_tuned + xgb_tuned + mlp + xgb_base + rf,5,0.5657003142006671,0.7889488515121039
+lgbm_tuned + histgb + mlp + gru + rf,5,0.5656953618837629,0.7897237995903257
+lgbm_tuned + histgb_tuned + mlp + rf,4,0.5656815993618026,0.7891744524686
+lgbm_tuned + xgb_tuned,2,0.5656738593210455,0.7896292470263105
+lgbm_tuned + xgb_tuned + catboost + mlp + gru,5,0.5656712348851636,0.790454411510233
+xgb_tuned + catboost + mlp + gru + rf,5,0.5656511099260058,0.7899931270136762
+lgbm_tuned + histgb_tuned + gru + rf,4,0.5656469280671005,0.7893358443484509
+lgbm_tuned + xgb_tuned + mlp + xgb_base,4,0.5656252421123293,0.7891058092722463
+lgbm_tuned + xgb_tuned + histgb + lstm + rf,5,0.5655707214872463,0.7896717440327004
+lgbm_tuned + xgb_tuned + histgb + mlp + xgb_base,5,0.5655705003348683,0.7891480291461541
+lgbm_tuned + histgb + mlp + rf,4,0.565542200676777,0.7889700597051195
+lgbm_tuned + histgb_tuned + catboost + gru + rf,5,0.5655263494267986,0.7897407248268046
+xgb_tuned + histgb + mlp + gru + rf,5,0.5655219090606207,0.7896754777630459
+lgbm_tuned + xgb_tuned + histgb + gru + rf,5,0.5655071215036986,0.789655322673461
+lgbm_tuned + mlp + gru + xgb_base + rf,5,0.5655056394168949,0.789132524843491
+lgbm_tuned + xgb_tuned + histgb + catboost + mlp,5,0.5654996229818773,0.7900536628252444
+lgbm_tuned + xgb_tuned + histgb_tuned + catboost + mlp,5,0.5654951458264684,0.7901581115382456
+lgbm_tuned + histgb + catboost + mlp + rf,5,0.5654913666738078,0.789431958931909
+lgbm_tuned + histgb + lstm + mlp + rf,5,0.5654897929026477,0.7896613389677021
+xgb_tuned + histgb_tuned + catboost + mlp + rf,5,0.5654777567327571,0.7897007119352062
+lgbm_tuned + catboost + lstm + mlp + rf,5,0.5654657391528424,0.7899295679386702
+xgb_tuned + histgb + catboost + mlp + rf,5,0.5654636136748368,0.7895096013757623
+xgb_tuned + histgb_tuned + catboost + gru + rf,5,0.5654421204957991,0.789798312956521
+lgbm_tuned + histgb_tuned + histgb + mlp + rf,5,0.5654027319076829,0.7892121979126201
+lgbm_tuned + xgb_tuned + histgb_tuned + mlp + xgb_base,5,0.5653987549421305,0.7893093807158259
+xgb_tuned + catboost + lstm + mlp + rf,5,0.565387665005981,0.7899452485983673
+xgb_tuned + mlp + gru + xgb_base + rf,5,0.5653839070541977,0.7891753040211349
+lgbm_tuned + xgb_tuned + histgb + mlp,4,0.5653707948268529,0.7897378325714491
+lgbm_tuned + histgb_tuned + histgb + gru + rf,5,0.5653681475050669,0.789297287662075
+lgbm_tuned + xgb_tuned + lstm + mlp + xgb_base,5,0.565363719720118,0.789588201186371
