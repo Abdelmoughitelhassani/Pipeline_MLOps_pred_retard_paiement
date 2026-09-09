@@ -1,0 +1,4 @@
+variante,n_features,pr_auc,roc_auc,ecart_vs_reference
+Toutes les features (référence),68,0.5649680639141946,0.7893539839290773,0.0
+Boruta confirmées (58),58,0.561967801330345,0.7878599929523699,-0.003
+Boruta confirmées + indécises (58),58,0.561967801330345,0.7878599929523699,-0.003

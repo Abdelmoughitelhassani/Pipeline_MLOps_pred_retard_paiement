@@ -19,26 +19,39 @@ cv:
   scoring: average_precision
 
 tuning:
-  n_iter: 20
+  method: optuna
+  sampler: TPE
+  n_trials: 100
   search_cv_folds: 3
   scoring: average_precision
 
-# Modèle retenu après comparaison de 11 modèles (voir reports/model_ranking.csv).
-# Trouvé par RandomizedSearchCV ; la régularisation forte et le learning_rate bas
-# corrigent le sur-apprentissage des paramètres initiaux (lr=0.1, depth=5).
+# Modèle retenu après comparaison de 11 modèles (reports/model_ranking.csv), puis
+# ré-optimisé par Optuna (phase 3). Optuna TPE à 100 essais fait +0.0018 de PR-AUC
+# out-of-fold sur RandomizedSearchCV à 20 tirages — voir reports/optuna_results.csv.
+# La prescription reste la même qu'avant : learning_rate bas et régularisation, pour
+# contenir le sur-apprentissage sur un jeu de données à faible rapport signal/bruit.
 final_model:
   name: xgboost
   params:
-    n_estimators: 517
-    max_depth: 4
-    learning_rate: 0.010239273411172712
-    subsample: 0.7350460685614512
-    colsample_bytree: 0.8908088595534959
-    min_child_weight: 9
-    gamma: 4.303652916281717
-    reg_alpha: 0.00663086412368092
-    reg_lambda: 0.18871820873117506
+    n_estimators: 457
+    max_depth: 5
+    learning_rate: 0.012200546876198851
+    subsample: 0.8580702300190309
+    colsample_bytree: 0.4935360379090283
+    min_child_weight: 2
+    gamma: 1.2982842528660328
+    reg_alpha: 0.6447754745013468
+    reg_lambda: 0.5386340703549012
   imbalance_strategy: scale_pos_weight
+  tuning: Optuna TPE, 100 essais (remplace RandomizedSearchCV, 20 tirages)
+
+# Sélection de features : Boruta rejette les 4 variables démographiques (SEX, EDUCATION,
+# MARRIAGE, AGE) sans perte mesurable (0.5620 contre 0.5650, dans le bruit). Non appliquée
+# par défaut car elle ne gagne rien en performance, mais utile si une contrainte
+# réglementaire ou d'auditabilité impose d'exclure les variables démographiques.
+# Liste des variables retenues : reports/boruta_features.json
+feature_selection:
+  method: none          # valeurs possibles : none | boruta_confirmed
 
 # Rapports coût(faux négatif) / coût(faux positif) explorés pour le choix du seuil.
 # Seul le rapport importe : la banque n'a pas à chiffrer ses coûts en valeur absolue.
