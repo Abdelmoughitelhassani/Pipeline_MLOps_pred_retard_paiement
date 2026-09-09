@@ -19,7 +19,7 @@ avec versionnement des données (DVC) et traçabilité des expériences (MLflow)
 Modèle retenu : **XGBoost tuné** (517 arbres, `depth=4`, `lr=0.0102`, `gamma=4.3`,
 `scale_pos_weight=3.521`), sélectionné parmi 11 modèles comparés sur un protocole identique.
 
-Le gain vient **entièrement du tuning d'hyperparamètres**. Trois autres pistes ont été testées
+Le gain vient **entièrement du tuning d'hyperparamètres**. Cinq autres pistes ont été testées
 et n'ont rien apporté — ce sont des résultats mesurés, pas des impressions :
 
 - **Feature engineering** : 4 jeux de features (23 variables brutes → 68 enrichies) donnent des
@@ -28,6 +28,23 @@ et n'ont rien apporté — ce sont des résultats mesurés, pas des impressions 
   0.0005 et restent sous le boosting tuné, alors que l'architecture exploite explicitement les
   6 mois d'historique.
 - **Ensembles** : le meilleur blend parmi 682 combinaisons gagne +0.0014, c'est-à-dire rien.
+- **Sélection de features (Boruta)** : retient 58 variables sur 68, pour une PR-AUC de 0.5620
+  contre 0.5650 — aucune amélioration.
+- **Optimisation bayésienne (Optuna TPE, 100 essais)** : gagne +0.0030 en validation interne
+  mais **le gain ne se transfère pas** au test set (0.5620 contre 0.5645). Cent essais sur
+  les mêmes plis suffisent à sur-ajuster la validation croisée.
+
+### Ce que Boruta a révélé d'utile
+
+Boruta rejette **les quatre variables démographiques** — `SEX`, `EDUCATION`, `MARRIAGE`,
+`AGE` — dont l'importance n'excède pas celle de leurs versions permutées aléatoirement.
+Les retirer coûte 0.0030 de PR-AUC, soit rien de mesurable.
+
+C'est exploitable : dans beaucoup de juridictions, l'usage du sexe ou de la situation
+matrimoniale dans un score de crédit est illégal ou strictement encadré. On dispose ici
+d'une **démonstration chiffrée** qu'un modèle conforme ne perdrait pas en performance.
+La liste des variables retenues est dans `reports/boruta_features.json`, activable via
+`feature_selection.method` dans `params.yaml`.
 
 ### Le plafond est dans les données, pas dans les modèles
 
@@ -40,6 +57,8 @@ Trois tests indépendants convergent :
    n'y a pas de désaccord exploitable.
 3. XGBoost et LightGBM tunés atterrissent tous deux sur 0.5650, au millième près, depuis des
    implémentations et des espaces de recherche indépendants.
+4. Un optimiseur bayésien (Optuna) et un sélecteur de variables (Boruta) échouent tous deux
+   à franchir ce plafond, alors qu'ils attaquent le problème par des angles différents.
 
 Le modèle reste utile : il sépare un groupe à **4.5 %** de risque d'un groupe à **70.2 %**
 (rapport de 15×) et il est bien calibré. Mais 30 % des clients du groupe le plus risqué ne font
@@ -57,6 +76,8 @@ src/
   tracking.py        Configuration MLflow centralisée
 scripts/
   exp_ablation.py    Diagnostic : effet du feature engineering à modèle constant
+  exp_boruta.py      Sélection de features par Boruta (variables fantômes)
+  exp_optuna.py      Tuning bayésien Optuna, comparé à RandomizedSearchCV
   run_experiments.py Comparaison des 11 modèles + tuning (reprenable après interruption)
   train_final.py     Entraîne, sérialise et enregistre le modèle retenu
   final_eval.py      Évaluation sur le test + seuils par coût métier

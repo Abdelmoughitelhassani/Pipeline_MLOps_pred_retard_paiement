@@ -43,7 +43,9 @@ stages:
           random_state: 42
           stratify: true
         tuning:
-          n_iter: 20
+          method: optuna
+          sampler: TPE
+          n_trials: 100
           search_cv_folds: 3
           scoring: average_precision
     outs:
@@ -81,8 +83,8 @@ stages:
       size: 8864
     - path: src/tracking.py
       hash: md5
-      md5: 1cf8061d9caf6d820f25a8261acfc16f
-      size: 1348
+      md5: 92f9c6f1e6f2580cd42ca611e9de3029
+      size: 2555
     params:
       params.yaml:
         cv:
@@ -93,16 +95,18 @@ stages:
         final_model:
           name: xgboost
           params:
-            n_estimators: 517
-            max_depth: 4
-            learning_rate: 0.010239273411172712
-            subsample: 0.7350460685614512
-            colsample_bytree: 0.8908088595534959
-            min_child_weight: 9
-            gamma: 4.303652916281717
-            reg_alpha: 0.00663086412368092
-            reg_lambda: 0.18871820873117506
+            n_estimators: 457
+            max_depth: 5
+            learning_rate: 0.012200546876198851
+            subsample: 0.8580702300190309
+            colsample_bytree: 0.4935360379090283
+            min_child_weight: 2
+            gamma: 1.2982842528660328
+            reg_alpha: 0.6447754745013468
+            reg_lambda: 0.5386340703549012
           imbalance_strategy: scale_pos_weight
+          tuning: Optuna TPE, 100 essais (remplace RandomizedSearchCV, 20 
+            tirages)
         split:
           test_size: 0.2
           random_state: 42
@@ -118,12 +122,12 @@ stages:
     outs:
     - path: models/final_model.joblib
       hash: md5
-      md5: 896ea98349da9ffe85522c149e391d74
-      size: 847905
+      md5: bbc2fe39b247e2ca30a258f922fcfdc1
+      size: 1182980
     - path: models/model_card.json
       hash: md5
-      md5: 1df8cfa9c7a0890f10faef4372ed1617
-      size: 2640
+      md5: 3214b4d4c12de11b63fcfa19a45bbc36
+      size: 2635
   evaluate:
     cmd: python scripts/final_eval.py
     deps:
