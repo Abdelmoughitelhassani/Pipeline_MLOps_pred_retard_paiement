@@ -1,6 +1,5 @@
 catboost==1.2.7
 dvc==3.67.1
-dvc-gdrive==3.0.1
 imbalanced-learn==0.12.4
 ipykernel==6.29.5
 joblib==1.6.0

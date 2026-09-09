@@ -1,4 +1,5 @@
 [core]
-    remote = gdrive
-['remote "gdrive"']
-    url = gdrive://194nrmCaxqm9fSEMTv6fEn5jUbUJBHlID
+    remote = dagshub
+['remote "dagshub"']
+    url = https://dagshub.com/abdelmoughitelhassani2/Pipeline_MLOps_pred_retard_paiement.dvc
+    auth = basic

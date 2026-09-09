@@ -74,8 +74,21 @@ dvc.yaml             Définition du pipeline reproductible
 python -m venv .venv
 .venv\Scripts\activate            # Windows
 pip install -r requirements.txt
-dvc pull                          # récupère données et artefacts versionnés
 ```
+
+Les artefacts (données, modèles, prédictions out-of-fold) sont stockés sur
+[DagsHub](https://dagshub.com/abdelmoughitelhassani2/Pipeline_MLOps_pred_retard_paiement).
+Pour les récupérer, il faut un jeton personnel
+([dagshub.com/user/settings/tokens](https://dagshub.com/user/settings/tokens)) :
+
+```bash
+dvc remote modify dagshub --local user <ton_utilisateur>
+dvc remote modify dagshub --local password <ton_jeton>
+dvc pull
+```
+
+Le drapeau `--local` écrit dans `.dvc/config.local`, volontairement ignoré par git :
+**aucun identifiant ne doit se retrouver dans un dépôt public**.
 
 ## Utilisation
 
@@ -97,8 +110,22 @@ Modifier un hyperparamètre dans `params.yaml` suffit à invalider les étapes c
 
 ### Historique des expériences
 
+L'historique est consultable en ligne dans l'onglet **Experiments** du
+[dépôt DagsHub](https://dagshub.com/abdelmoughitelhassani2/Pipeline_MLOps_pred_retard_paiement),
+ou en local :
+
 ```bash
 mlflow ui --backend-store-uri sqlite:///mlflow.db      # http://localhost:5000
+```
+
+Pour enregistrer de nouveaux runs directement sur le serveur distant, il suffit de définir
+trois variables d'environnement avant de lancer un script — le code bascule alors tout seul
+du mode local au mode distant (voir `src/tracking.py`) :
+
+```bash
+export MLFLOW_TRACKING_URI=https://dagshub.com/<user>/<repo>.mlflow
+export MLFLOW_TRACKING_USERNAME=<user>
+export MLFLOW_TRACKING_PASSWORD=<jeton>
 ```
 
 L'historique complet est déjà enregistré — **40 runs**, réinjectés depuis les fichiers de
