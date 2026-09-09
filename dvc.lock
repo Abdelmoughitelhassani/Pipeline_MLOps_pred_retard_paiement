@@ -204,10 +204,10 @@ stages:
       size: 531
     - path: scripts/build_report.py
       hash: md5
-      md5: 534a44d07e5532983a62de06acf74cc6
-      size: 56623
+      md5: 51b3dc6eb3d6d60f3da047c4e8ec47f6
+      size: 73560
     outs:
     - path: reports/rapport_pipeline_credit_default.pdf
       hash: md5
-      md5: a5a1047b6b5190a3c2f11b57b7438ac8
-      size: 536670
+      md5: 9d5052359f166b35530bb9dfaf0c107d
+      size: 672186
