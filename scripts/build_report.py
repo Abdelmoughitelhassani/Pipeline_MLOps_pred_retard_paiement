@@ -48,8 +48,23 @@ _X, _y, _ = dp.get_tabular()
 _idx_train, _ = dp.train_test_indices(_y)
 y_tr = _y.iloc[_idx_train].to_numpy()
 
+# --- phase 3 : sélection de features et optimisation bayésienne ---------------
+boruta_res = pd.read_csv(REPORTS / "boruta_results.csv")
+boruta_feat = json.loads((REPORTS / "boruta_features.json").read_text(encoding="utf-8"))
+optuna_res = pd.read_csv(REPORTS / "optuna_results.csv")
+optuna_hist = {m: pd.read_csv(REPORTS / f"optuna_history_{m}.csv")
+               for m in ("xgboost", "lightgbm")}
+optuna_params = json.loads((REPORTS / "optuna_best_params.json").read_text(encoding="utf-8"))
+model_card = json.loads((ROOT / "models" / "model_card.json").read_text(encoding="utf-8"))
+
 BASELINE_TEST = {"pr_auc": 0.5432, "roc_auc": 0.7661}   # rapport v1, XGBoost non tuné
-FINAL_TEST = {"pr_auc": final["test_pr_auc"], "roc_auc": final["test_roc_auc"]}
+# Modèle sélectionné par RandomizedSearchCV (registre MLflow, version 1)
+V1_TEST = {"pr_auc": final["test_pr_auc"], "roc_auc": final["test_roc_auc"]}
+# Modèle de production actuel : hyperparamètres Optuna (registre MLflow, version 2)
+FINAL_TEST = {"pr_auc": model_card["metrics"]["test_pr_auc"],
+              "roc_auc": model_card["metrics"]["test_roc_auc"]}
+FINAL_OOF = {"pr_auc": model_card["metrics"]["oof_pr_auc"],
+             "roc_auc": model_card["metrics"]["oof_roc_auc"]}
 
 FAMILY = {"lgbm_tuned": "Boosting tuné", "xgb_tuned": "Boosting tuné",
           "histgb_tuned": "Boosting tuné", "histgb": "Boosting", "catboost": "Boosting",
@@ -174,6 +189,95 @@ def fig_cost_threshold():
     plt.close(fig)
 
 
+def fig_boruta():
+    """Statut des 68 variables + impact sur la performance."""
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6),
+                             gridspec_kw={"width_ratios": [1, 1.25]})
+
+    n_conf = len(boruta_feat["confirmed"])
+    n_rej = len(boruta_feat["rejected"])
+    axes[0].bar(["Confirmées", "Rejetées"], [n_conf, n_rej],
+                color=["#2e7d5b", "#b3413e"], width=0.55)
+    for i, v in enumerate([n_conf, n_rej]):
+        axes[0].text(i, v + 1, str(v), ha="center", fontsize=13, fontweight="bold")
+    axes[0].set_ylim(0, n_conf + 10)
+    axes[0].set_ylabel("Nombre de variables")
+    axes[0].set_title("Verdict de Boruta sur 68 variables", fontsize=10)
+
+    labels = [v.replace("Boruta ", "").replace(" (référence)", "") for v in boruta_res["variante"]]
+    labels = [textwrap.fill(l, 20) for l in labels[:2]]
+    vals = boruta_res["pr_auc"].head(2)
+    bars = axes[1].bar(labels, vals, color=["#9a9a9a", "#2e7d5b"], width=0.5)
+    for b, v in zip(bars, vals):
+        axes[1].text(b.get_x() + b.get_width() / 2, v + 0.001, f"{v:.4f}",
+                     ha="center", fontsize=11, fontweight="bold")
+    axes[1].set_ylim(0.54, 0.58)
+    axes[1].set_ylabel("PR-AUC (out-of-fold)")
+    axes[1].set_title("Réduire le nombre de variables n'apporte rien", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(IMG_NEW / "boruta.png", dpi=130)
+    plt.close(fig)
+
+
+def fig_optuna_convergence():
+    """Meilleur score atteint au fil des essais, contre la référence RandomizedSearchCV."""
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
+    for ax, (name, ref) in zip(axes, [("xgboost", 0.5641), ("lightgbm", 0.5647)]):
+        h = optuna_hist[name].sort_values("trial")
+        ax.plot(h["trial"] + 1, h["value"].cummax(), color=NAVY, lw=2,
+                label="Optuna TPE (meilleur atteint)")
+        ax.scatter(h["trial"] + 1, h["value"], s=8, color="#b9cbe6", zorder=1,
+                   label="essais individuels")
+        ax.axhline(ref, ls="--", color=RED, lw=1.5,
+                   label=f"RandomizedSearchCV (20 tirages) = {ref:.4f}")
+        ax.axvline(20, ls=":", color=GRAY, lw=1.2)
+        ax.text(21, 0.545, "budget égal\n(20 essais)", fontsize=7.5, color=GRAY)
+        ax.set_xlabel("Essai")
+        ax.set_title(name, fontsize=10, fontweight="bold")
+        ax.set_ylim(0.535, 0.570)
+        ax.grid(alpha=0.25)
+    axes[0].set_ylabel("average_precision (3-fold interne)")
+    axes[0].legend(fontsize=7.5, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(IMG_NEW / "optuna_convergence.png", dpi=130)
+    plt.close(fig)
+
+
+def fig_cv_vs_test():
+    """Le résultat central de la phase 3 : le gain en validation ne passe pas au test."""
+    fig, ax = plt.subplots(figsize=(9, 4.4))
+    x = np.arange(2)
+    w = 0.35
+    cv_vals = [0.5650, FINAL_OOF["pr_auc"]]
+    test_vals = [V1_TEST["pr_auc"], FINAL_TEST["pr_auc"]]
+
+    b1 = ax.bar(x - w / 2, cv_vals, w, label="Validation croisée (train)", color="#7fb069")
+    b2 = ax.bar(x + w / 2, test_vals, w, label="Test set (jamais vu)", color="#1f3a5f")
+    for bars, vals in ((b1, cv_vals), (b2, test_vals)):
+        for b, v in zip(bars, vals):
+            ax.text(b.get_x() + b.get_width() / 2, v + 0.001, f"{v:.4f}",
+                    ha="center", fontsize=10, fontweight="bold")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(["RandomizedSearchCV\n(20 tirages)", "Optuna TPE\n(100 essais)"])
+    ax.set_ylabel("PR-AUC")
+    ax.set_ylim(0.55, 0.575)
+    ax.legend(fontsize=9)
+    ax.annotate("", xy=(1 - w / 2, cv_vals[1]), xytext=(0 - w / 2, cv_vals[0]),
+                arrowprops=dict(arrowstyle="->", color=GREEN, lw=1.8))
+    ax.text(0.5, 0.5685, f"+{cv_vals[1]-cv_vals[0]:.4f}", ha="center", color=GREEN,
+            fontsize=10, fontweight="bold")
+    ax.annotate("", xy=(1 + w / 2, test_vals[1]), xytext=(0 + w / 2, test_vals[0]),
+                arrowprops=dict(arrowstyle="->", color=RED, lw=1.8))
+    ax.text(0.5, 0.5595, f"{test_vals[1]-test_vals[0]:+.4f}", ha="center", color=RED,
+            fontsize=10, fontweight="bold")
+    ax.set_title("Optuna gagne en validation croisée, perd sur le test : le gain ne généralise pas",
+                 fontsize=10)
+    fig.tight_layout()
+    fig.savefig(IMG_NEW / "cv_vs_test.png", dpi=130)
+    plt.close(fig)
+
+
 def fig_before_after():
     fig, axes = plt.subplots(1, 2, figsize=(9, 4))
     for ax, key, name in zip(axes, ["pr_auc", "roc_auc"], ["PR-AUC", "ROC-AUC"]):
@@ -264,6 +368,7 @@ def image_page(pdf, title, img_path, caption, page, text_top=None, text_bottom=N
 # =============================================================== construction du PDF
 def build():
     fig_ablation(); fig_model_ranking(); fig_calibration(); fig_cost_threshold(); fig_before_after()
+    fig_boruta(); fig_optuna_convergence(); fig_cv_vs_test()
     corr_mean, corr_min = fig_correlation()
 
     pdf = PdfPages(OUT_PDF)
@@ -277,20 +382,27 @@ def build():
             va="center", fontweight="bold", transform=ax.transAxes)
     ax.text(0.5, 0.855, "Prédiction de retard de paiement — Cartes de crédit", fontsize=13,
             color="#dbe6f5", ha="center", va="center", transform=ax.transAxes)
-    ax.text(0.5, 0.815, "Version 2 — optimisation, deep learning et analyse du plafond",
+    ax.text(0.5, 0.815, "Version 3 — optimisation, deep learning, sélection de variables",
             fontsize=10, color="#b9cbe6", ha="center", va="center", transform=ax.transAxes,
             style="italic")
-    ax.text(0.5, 0.70, "Nettoyage · Feature engineering · Rééquilibrage · Comparaison de\n"
-            "18 modèles · Tuning · Deep learning séquentiel · Seuil par coût métier",
+    ax.text(0.5, 0.70, "Nettoyage · Feature engineering · Rééquilibrage · 18 modèles ·\n"
+            "Deep learning séquentiel · Boruta · Optuna · Seuil par coût métier · MLOps",
             fontsize=11.5, ha="center", va="center", transform=ax.transAxes, linespacing=1.7)
 
+    p = optuna_params["xgboost"]
     rows = [("Dataset", "Default of Credit Card Clients (UCI) — 30 000 clients, Taïwan"),
             ("Cible", "DEFAULT — 22.12% de défauts (ratio 3.52 : 1)"),
-            ("Modèle retenu", "XGBoost tuné (517 arbres, lr=0.010, depth=4)"),
-            ("PR-AUC (test)", f"{FINAL_TEST['pr_auc']:.4f}   (v1 : {BASELINE_TEST['pr_auc']:.4f}"
-                              f"  →  +{FINAL_TEST['pr_auc']-BASELINE_TEST['pr_auc']:.4f})"),
-            ("ROC-AUC (test)", f"{FINAL_TEST['roc_auc']:.4f}   (v1 : {BASELINE_TEST['roc_auc']:.4f}"
-                               f"  →  +{FINAL_TEST['roc_auc']-BASELINE_TEST['roc_auc']:.4f})")]
+            ("Modèle en production",
+             f"XGBoost ({p['n_estimators']} arbres, lr={p['learning_rate']:.4f}, "
+             f"depth={p['max_depth']}) — tuné par Optuna"),
+            ("PR-AUC (test)", f"{FINAL_TEST['pr_auc']:.4f}   (point de départ : "
+                              f"{BASELINE_TEST['pr_auc']:.4f}  →  "
+                              f"+{FINAL_TEST['pr_auc']-BASELINE_TEST['pr_auc']:.4f})"),
+            ("ROC-AUC (test)", f"{FINAL_TEST['roc_auc']:.4f}   (point de départ : "
+                               f"{BASELINE_TEST['roc_auc']:.4f}  →  "
+                               f"+{FINAL_TEST['roc_auc']-BASELINE_TEST['roc_auc']:.4f})"),
+            ("À savoir", f"une variante atteint {V1_TEST['pr_auc']:.4f} en test : les deux "
+                         f"configurations sont équivalentes (§20)")]
     y = 0.56
     for k, v in rows:
         ax.text(0.07, y, k + " :", fontsize=10, fontweight="bold", transform=ax.transAxes)
@@ -327,16 +439,22 @@ def build():
            ("13. Deep learning séquentiel (LSTM, GRU, MLP)", False),
            ("14. Blending : pourquoi il ne rapporte rien ici", False),
            ("15. Trois preuves que le plafond est dans les données", False),
-           ("16. Évaluation finale sur le test set", False),
+           ("16. Évaluation sur le test set", False),
            ("17. Choix du seuil par coût métier", False),
-           ("18. Synthèse et recommandations", False)]
-    y = 0.96
+           ("", False),
+           ("PARTIE 3 — SÉLECTION DE VARIABLES, OPTIMISATION BAYÉSIENNE, MLOPS", True),
+           ("18. Sélection de variables par Boruta", False),
+           ("19. Optimisation bayésienne avec Optuna", False),
+           ("20. Quand un gain en validation ne survit pas au test", False),
+           ("21. Infrastructure MLOps : Git, DVC, MLflow", False),
+           ("22. Synthèse générale et recommandations", False)]
+    y = 0.965
     for line, is_head in toc:
         if line:
-            ax.text(0.02, y, line, fontsize=11 if is_head else 10.2, transform=ax.transAxes,
+            ax.text(0.02, y, line, fontsize=10.5 if is_head else 9.8, transform=ax.transAxes,
                     fontweight="bold" if is_head else "normal",
                     color=NAVY if is_head else "#222")
-        y -= 0.042
+        y -= 0.0355
     pdf.savefig(fig); plt.close(fig)
 
     # ---------------------------------------------------------------- P1 : contexte
@@ -812,7 +930,7 @@ def build():
 
     # ---------------------------------------------------------------- éval finale
     fig = plt.figure(figsize=A4)
-    add_header(fig, "16. Évaluation finale sur le test set", "6 000 clients, jamais utilisés avant",
+    add_header(fig, "16. Évaluation sur le test set", "6 000 clients, jamais utilisés avant",
                page=22)
     axi = fig.add_axes([0.07, 0.56, 0.86, 0.32])
     axi.imshow(mpimg.imread(IMG_NEW / "before_after.png")); axi.axis("off")
@@ -866,41 +984,204 @@ def build():
         "modèle.", 98), fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes)
     pdf.savefig(fig); plt.close(fig)
 
-    # ---------------------------------------------------------------- synthèse
+    # ================================================================ PARTIE 3
     fig = plt.figure(figsize=A4)
-    add_header(fig, "18. Synthèse et recommandations", page=24)
-    ax = fig.add_axes([0.07, 0.08, 0.86, 0.81]); ax.axis("off")
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.add_patch(plt.Rectangle((0, 0.42), 1, 0.16, color=NAVY, transform=ax.transAxes))
+    ax.text(0.5, 0.50, "PARTIE 3", fontsize=30, color="white", ha="center", va="center",
+            fontweight="bold", transform=ax.transAxes)
+    ax.text(0.5, 0.355, "Sélection de variables, optimisation bayésienne\net infrastructure MLOps",
+            fontsize=14, ha="center", va="center", transform=ax.transAxes, linespacing=1.7,
+            color=NAVY)
+    ax.text(0.5, 0.24, "Deux outils de référence mis à l'épreuve — Boruta et Optuna —\n"
+            "et ce qu'ils apprennent sur la limite du problème.", fontsize=11, ha="center",
+            va="center", transform=ax.transAxes, style="italic", color=GRAY, linespacing=1.6)
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- Boruta
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "18. Sélection de variables par Boruta",
+               "80 itérations sur 24 000 clients", page=25)
+    ax = fig.add_axes([0.07, 0.70, 0.86, 0.19]); ax.axis("off")
+    ax.text(0.0, 0.98, wrap(
+        "Boruta compare l'importance de chaque variable à celle de « variables fantômes » "
+        "obtenues en permutant aléatoirement ses valeurs. Une variable n'est retenue que si "
+        "elle bat significativement le meilleur fantôme, sur de nombreuses itérations. "
+        "C'est une sélection all-relevant : elle conserve tout ce qui porte de l'information.\n\n"
+        "Hypothèse posée AVANT l'exécution : l'ablation de la partie 2 ayant montré que "
+        "23 variables brutes valent 68 variables enrichies, réduire leur nombre ne devrait "
+        "pas améliorer la performance.", 98),
+        fontsize=9.3, va="top", linespacing=1.5, transform=ax.transAxes)
+
+    axi = fig.add_axes([0.07, 0.40, 0.86, 0.27])
+    axi.imshow(mpimg.imread(IMG_NEW / "boruta.png")); axi.axis("off")
+
+    ax2 = fig.add_axes([0.07, 0.06, 0.86, 0.31]); ax2.axis("off")
+    rejected = ", ".join(boruta_feat["rejected"])
+    ax2.text(0.0, 0.97, wrap(
+        f"Résultat : {len(boruta_feat['confirmed'])} variables confirmées sur 68, "
+        f"{len(boruta_feat['rejected'])} rejetées. La PR-AUC passe de "
+        f"{boruta_res.iloc[0]['pr_auc']:.4f} à {boruta_res.iloc[1]['pr_auc']:.4f}, "
+        "soit une légère dégradation — aucun gain, comme anticipé.\n\n"
+        f"Variables rejetées : {rejected}.\n\n"
+        "L'apport réel est ailleurs. Boruta rejette LES QUATRE VARIABLES DÉMOGRAPHIQUES "
+        "(SEX, EDUCATION, MARRIAGE, AGE) : leur pouvoir prédictif est indiscernable du hasard "
+        "une fois connu l'historique de paiement. Or dans de nombreuses juridictions, l'usage "
+        "du sexe ou de la situation matrimoniale dans un score de crédit est illégal ou "
+        "strictement encadré. On dispose donc d'une démonstration chiffrée qu'un modèle "
+        "conforme à ces contraintes ne perdrait rien de mesurable.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes)
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- Optuna
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "19. Optimisation bayésienne avec Optuna",
+               "100 essais, espace de recherche identique à RandomizedSearchCV", page=26)
+    ax = fig.add_axes([0.07, 0.74, 0.86, 0.15]); ax.axis("off")
+    ax.text(0.0, 0.98, wrap(
+        "RandomizedSearchCV tire 20 configurations au hasard, indépendamment les unes des "
+        "autres. L'échantillonneur TPE d'Optuna modélise au contraire la relation entre "
+        "hyperparamètres et score pour concentrer la recherche dans les régions prometteuses. "
+        "Pour isoler l'effet de l'ALGORITHME, le même espace de recherche et la même validation "
+        "croisée interne (3-fold) ont été utilisés.", 98),
+        fontsize=9.3, va="top", linespacing=1.5, transform=ax.transAxes)
+
+    opt_tbl = pd.DataFrame({
+        "Modèle": optuna_res["model"],
+        "Random (20)": optuna_res["random_search_3fold"].map(lambda v: f"{v:.4f}"),
+        "Optuna (20)": optuna_res["optuna_3fold_at_20"].map(lambda v: f"{v:.4f}"),
+        "Optuna (100)": optuna_res["optuna_3fold_best"].map(lambda v: f"{v:.4f}"),
+        "OOF 5-fold": optuna_res["oof_pr_auc"].map(lambda v: f"{v:.4f}"),
+    })
+    table(fig.add_axes([0.08, 0.60, 0.84, 0.12]), opt_tbl, fontsize=8.6)
+
+    axi = fig.add_axes([0.06, 0.32, 0.88, 0.26])
+    axi.imshow(mpimg.imread(IMG_NEW / "optuna_convergence.png")); axi.axis("off")
+
+    ax2 = fig.add_axes([0.07, 0.06, 0.86, 0.24]); ax2.axis("off")
+    ax2.text(0.0, 0.97, wrap(
+        "À budget égal (20 essais), le résultat est mitigé et mérite d'être dit sans le lisser : "
+        "Optuna gagne sur XGBoost (+0.0021) mais PERD sur LightGBM (-0.0005). Le TPE a besoin "
+        "d'un minimum d'essais pour que son modèle interne devienne informatif ; en dessous, il "
+        "échantillonne de façon quasi aléatoire. Ce n'est qu'à 100 essais qu'il passe devant sur "
+        "les deux modèles.\n\n"
+        "Les courbes montrent aussi un rendement fortement décroissant : l'essentiel est acquis "
+        "avant le 40e essai, et les 60 suivants n'apportent presque rien.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes)
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- CV vs test
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "20. Quand un gain en validation ne survit pas au test",
+               "Le résultat le plus instructif de la partie 3", page=27)
+    axi = fig.add_axes([0.07, 0.55, 0.86, 0.33])
+    axi.imshow(mpimg.imread(IMG_NEW / "cv_vs_test.png")); axi.axis("off")
+
+    cmp_tbl = pd.DataFrame({
+        "Jeu évalué": ["Validation croisée (train)", "Test set (jamais vu)"],
+        "RandomizedSearchCV": [f"{0.5650:.4f}", f"{V1_TEST['pr_auc']:.4f}"],
+        "Optuna": [f"{FINAL_OOF['pr_auc']:.4f}", f"{FINAL_TEST['pr_auc']:.4f}"],
+        "Écart": [f"+{FINAL_OOF['pr_auc']-0.5650:.4f}",
+                  f"{FINAL_TEST['pr_auc']-V1_TEST['pr_auc']:+.4f}"],
+    })
+    table(fig.add_axes([0.10, 0.40, 0.80, 0.12]), cmp_tbl, fontsize=8.8)
+
+    ax = fig.add_axes([0.07, 0.06, 0.86, 0.31]); ax.axis("off")
+    ax.text(0.0, 0.97, wrap(
+        "Optuna trouve une configuration qui marque mieux en validation croisée (+0.0017), et "
+        "ce gain ne passe PAS sur des données nouvelles : il s'inverse même (-0.0025). C'est le "
+        "cas d'école du sur-ajustement aux plis de validation — en évaluant 100 configurations "
+        "sur les cinq mêmes découpages, on finit par en trouver une qui exploite le bruit propre "
+        "à ces découpages.\n\n"
+        "Les deux écarts sont inférieurs à l'écart-type entre plis (±0.007). La lecture correcte "
+        "n'est donc pas « Optuna est moins bon », mais : les deux configurations sont "
+        "statistiquement indiscernables, et l'optimisation n'a pas amélioré la performance réelle.\n\n"
+        "Point de méthode : revenir aux anciens paramètres PARCE QUE le test est meilleur "
+        "reviendrait à utiliser le test pour choisir, ce qui détruirait son statut d'estimation "
+        "non biaisée. La configuration Optuna a donc été conservée, conformément au protocole "
+        "défini à l'avance. À noter tout de même : deux modèles ont désormais été évalués sur ce "
+        "test set, ce qui érode progressivement son indépendance.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax.transAxes)
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- MLOps
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "21. Infrastructure MLOps", "Git, DVC et MLflow", page=28)
+    ax = fig.add_axes([0.07, 0.60, 0.86, 0.29]); ax.axis("off")
     bullets(ax, [
-        ("Ce qui a produit un gain :", "le tuning d'hyperparamètres, et lui seul "
-         f"(+{FINAL_TEST['pr_auc']-BASELINE_TEST['pr_auc']:.4f} de PR-AUC sur le test, soit "
-         f"+{100*(FINAL_TEST['pr_auc']/BASELINE_TEST['pr_auc']-1):.1f}%). Les paramètres initiaux "
-         "sur-apprenaient."),
-        ("Ce qui n'a rien produit :", "le feature engineering (4 jeux testés, écarts sous le "
-         "bruit), le deep learning séquentiel (LSTM/GRU au niveau d'un simple MLP, sous le "
-         "boosting), et le blending (+0.0014 sur 682 combinaisons testées)."),
-        ("Ce qui était déjà bon :", "la stratégie de rééquilibrage. class_weight / "
-         "scale_pos_weight reste le meilleur choix — aucune donnée dupliquée, aucun identifiant "
-         "client inventé."),
-        ("Le plafond est dans les données :", "démontré par trois tests indépendants — "
-         f"corrélation inter-modèles de {corr_mean:.3f}, blending sans effet, et convergence de "
-         "deux boostings distincts sur la même valeur au millième."),
-        ("Le modèle reste utile :", "il distingue un groupe à 4.5% de risque d'un groupe à 70%, "
-         "soit un rapport de 15x, et il est bien calibré — donc directement exploitable pour "
-         "prioriser des actions."),
-        ("Pour progresser davantage :", "il faut de nouvelles DONNÉES (revenus, ancienneté "
-         "bancaire, encours dans d'autres établissements, incidents externes), pas de nouveaux "
-         "algorithmes. C'est la recommandation principale de ce rapport."),
-        ("Seuil de décision :", "à arbitrer avec le métier via la table de coûts (section 17), "
-         "jamais par une formule automatique."),
-    ], y=0.95, fontsize=9.5, width=94)
-    ax.text(0.02, 0.20, "Prochaine étape — industrialisation", fontsize=11, fontweight="bold",
-            color=NAVY, transform=ax.transAxes)
-    ax.text(0.02, 0.16, wrap(
-        "Le code est déjà structuré pour cela : src/data_prep.py (chargement, nettoyage, features), "
-        "scripts/run_experiments.py (expériences reproductibles avec reprise après interruption), "
-        "scripts/final_eval.py (évaluation et seuils). Reste à ajouter un script d'entraînement "
-        "produisant un modèle sérialisé, une API d'inférence, et un suivi de dérive des données "
-        "en production.", 96), fontsize=9.2, va="top", linespacing=1.55, transform=ax.transAxes)
+        ("Git / GitHub :", "code, métriques au format texte, figures et rapport. Aucun artefact "
+         "binaire lourd — le dépôt reste léger et lisible."),
+        ("DVC :", "données source, prédictions out-of-fold, modèles sérialisés et base MLflow. "
+         "Git ne conserve que des pointeurs .dvc porteurs du hash de contenu, ce qui permet de "
+         "retrouver la version exacte d'un artefact à n'importe quel commit."),
+        ("MLflow :", "47 runs enregistrés, couvrant l'intégralité des expériences des trois "
+         "parties, avec pour chacune ses hyperparamètres, ses métriques, sa famille, son "
+         "architecture et sa méthode d'entraînement."),
+        ("Pipeline reproductible :", "dvc.yaml décrit les étapes et leurs dépendances ; modifier "
+         "un paramètre dans params.yaml suffit à invalider les seules étapes concernées."),
+        ("Séparation des secrets :", "les identifiants vivent dans .dvc/config.local, "
+         "volontairement ignoré par git — aucun jeton ne peut partir sur un dépôt public."),
+    ], y=0.97, fontsize=9.3, width=96)
+
+    mlops = pd.DataFrame({
+        "Expérience MLflow": ["phase1-strategies", "phase2-ablation", "phase2-models",
+                              "phase2-blends", "phase3-feature-selection", "phase3-optuna",
+                              "production"],
+        "Runs": [15, 4, 11, 10, 3, 2, 2],
+        "Contenu": ["modèle x rééquilibrage", "jeux de features", "11 modèles comparés",
+                    "ensembles", "Boruta", "Optuna", "modèles déployés"],
+    })
+    table(fig.add_axes([0.10, 0.30, 0.80, 0.25]), mlops, fontsize=8.4,
+          widths=[0.40, 0.14, 0.46])
+
+    ax2 = fig.add_axes([0.07, 0.07, 0.86, 0.18]); ax2.axis("off")
+    ax2.text(0.0, 0.95, wrap(
+        "Un incident survenu en cours de projet illustre l'intérêt du découplage : le fichier "
+        "de données source a changé de taille (5 539 328 → 5 540 352 octets) sans qu'aucune "
+        "donnée ne soit modifiée — seules les métadonnées Excel avaient bougé. Git signalait un "
+        "fichier modifié là où le contenu était rigoureusement identique.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes, style="italic")
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- synthèse générale
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "22. Synthèse générale et recommandations", page=29)
+    ax = fig.add_axes([0.07, 0.30, 0.86, 0.59]); ax.axis("off")
+    bullets(ax, [
+        ("Ce qui a produit un gain :", "le tuning d'hyperparamètres, et lui seul. Le passage de "
+         f"{BASELINE_TEST['pr_auc']:.4f} à {FINAL_TEST['pr_auc']:.4f} de PR-AUC sur le test "
+         f"(+{100*(FINAL_TEST['pr_auc']/BASELINE_TEST['pr_auc']-1):.1f}%) vient de la correction "
+         "d'un sur-apprentissage des paramètres initiaux."),
+        ("Cinq pistes sans effet :", "le feature engineering (4 jeux indiscernables), le deep "
+         "learning séquentiel (LSTM/GRU au niveau d'un simple MLP), le blending (+0.0014 sur "
+         "682 combinaisons), la sélection Boruta (-0.0030), et l'optimisation bayésienne "
+         "(gain en validation croisée annulé sur le test)."),
+        ("Le plafond est dans les données :", "quatre preuves indépendantes — corrélation "
+         f"inter-modèles de {corr_mean:.3f}, blending sans effet, convergence de deux boostings "
+         "distincts au millième, et échec de deux outils attaquant le problème par des angles "
+         "différents (Boruta et Optuna)."),
+        ("Le modèle reste utile :", "il sépare un groupe à 4.5% de risque d'un groupe à 70.2%, "
+         "soit un rapport de 15x, et il est bien calibré — directement exploitable pour "
+         "prioriser des actions de recouvrement."),
+        ("Un résultat exploitable pour la conformité :", "les quatre variables démographiques "
+         "peuvent être retirées sans perte mesurable (§18), ce qui ouvre la voie à un modèle "
+         "conforme aux contraintes réglementaires du scoring crédit."),
+        ("Seuil de décision :", "à arbitrer avec le métier via la table de coûts (§17), jamais "
+         "par une formule automatique. Maximiser le F2 conduisait à flaguer 60% du portefeuille."),
+    ], y=0.97, fontsize=9.4, width=96)
+
+    ax2 = fig.add_axes([0.07, 0.06, 0.86, 0.21]); ax2.axis("off")
+    ax2.text(0.0, 0.97, "Recommandation principale", fontsize=11.5, fontweight="bold",
+             color=NAVY, transform=ax2.transAxes, va="top")
+    ax2.text(0.0, 0.80, wrap(
+        "Six approches ont été poussées jusqu'à leur limite sans franchir le plafond. Pour "
+        "progresser, il faut de nouvelles DONNÉES — revenus, ancienneté bancaire, encours dans "
+        "d'autres établissements, incidents de paiement externes — et non de nouveaux "
+        "algorithmes. Investir dans l'enrichissement des données aurait ici un rendement bien "
+        "supérieur à tout raffinement de modélisation supplémentaire.\n\n"
+        "Prochaine étape technique : industrialiser l'inférence (API de scoring, suivi de dérive "
+        "des données en production), le modèle étant stable et sa limite documentée.", 98),
+        fontsize=9.3, va="top", linespacing=1.55, transform=ax2.transAxes)
     pdf.savefig(fig); plt.close(fig)
 
     pdf.close()
