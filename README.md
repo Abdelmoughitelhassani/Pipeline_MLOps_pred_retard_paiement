@@ -68,6 +68,9 @@ d'autres établissements), pas d'autres algorithmes.
 
 ## Structure
 
+Le rôle détaillé de chaque fichier est documenté dans
+**[GUIDE_DES_FICHIERS.md](GUIDE_DES_FICHIERS.md)**.
+
 ```
 data/raw/            Données source (suivies par DVC)
 notebooks/           01_eda_analyse_donnees.ipynb — EDA et pipeline de base
