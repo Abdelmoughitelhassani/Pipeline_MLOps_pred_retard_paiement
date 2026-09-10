@@ -57,6 +57,10 @@ optuna_hist = {m: pd.read_csv(REPORTS / f"optuna_history_{m}.csv")
 optuna_params = json.loads((REPORTS / "optuna_best_params.json").read_text(encoding="utf-8"))
 model_card = json.loads((ROOT / "models" / "model_card.json").read_text(encoding="utf-8"))
 
+# --- phase 4 : traitement des outliers ---------------------------------------
+outliers_res = pd.read_csv(REPORTS / "outliers_results.csv")
+outliers_enrich = pd.read_csv(REPORTS / "outliers_enrichment.csv")
+
 BASELINE_TEST = {"pr_auc": 0.5432, "roc_auc": 0.7661}   # rapport v1, XGBoost non tuné
 # Modèle sélectionné par RandomizedSearchCV (registre MLflow, version 1)
 V1_TEST = {"pr_auc": final["test_pr_auc"], "roc_auc": final["test_roc_auc"]}
@@ -278,6 +282,88 @@ def fig_cv_vs_test():
     plt.close(fig)
 
 
+def fig_outliers():
+    """Protocole correct : aucun gain, et la dégradation croît avec l'agressivité."""
+    ok = outliers_res[outliers_res["protocole"].str.contains("correct", na=False)]
+    base = outliers_res.iloc[0]["pr_auc"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4),
+                             gridspec_kw={"width_ratios": [1.5, 1]})
+
+    labels, vals, colors = ["aucun\n(référence)"], [base], ["#9a9a9a"]
+    for _, r in ok.iterrows():
+        name = {"isolation_forest": "IsoForest", "lof": "LOF", "dbscan": "DBSCAN"}[r["detecteur"]]
+        labels.append(f"{name}\n{r['contamination']:.0%}" if r["detecteur"] != "dbscan"
+                      else "DBSCAN\n(eps=8)")
+        vals.append(r["pr_auc"])
+        colors.append("#b3413e" if r["pr_auc"] < base - 0.002 else "#7fb069")
+    bars = axes[0].bar(labels, vals, color=colors, width=0.6)
+    for b, v in zip(bars, vals):
+        axes[0].text(b.get_x() + b.get_width() / 2, v + 0.0008, f"{v:.4f}",
+                     ha="center", fontsize=7.8)
+    axes[0].axhline(base, ls="--", color=GRAY, lw=1.2)
+    axes[0].set_ylim(0.555, 0.575)
+    axes[0].set_ylabel("PR-AUC (5-fold)")
+    axes[0].tick_params(axis="x", labelsize=7.5)
+    axes[0].set_title("Protocole correct : suppression sur le train du pli seul", fontsize=10)
+
+    x = np.arange(len(outliers_enrich))
+    w = 0.36
+    axes[1].bar(x - w / 2, outliers_enrich["taux_defaut_outliers"], w,
+                label="parmi les lignes flaguées", color="#b3413e")
+    axes[1].bar(x + w / 2, outliers_enrich["taux_defaut_conserves"], w,
+                label="parmi les lignes conservées", color="#7fb069")
+    for i, r in outliers_enrich.iterrows():
+        axes[1].text(i - w / 2, r["taux_defaut_outliers"] + 0.006,
+                     f"{r['taux_defaut_outliers']:.1%}", ha="center", fontsize=8,
+                     fontweight="bold")
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels([f"{c:.0%}" for c in outliers_enrich["contamination"]])
+    axes[1].set_xlabel("Contamination")
+    axes[1].set_ylabel("Taux de défaut")
+    axes[1].set_ylim(0, 0.42)
+    axes[1].legend(fontsize=7.5)
+    axes[1].set_title("Les outliers sont des défaillants", fontsize=10)
+
+    fig.tight_layout()
+    fig.savefig(IMG_NEW / "outliers.png", dpi=130)
+    plt.close(fig)
+
+
+def fig_prevalence_trap():
+    """Protocole incorrect : la métrique bouge parce que la prévalence change."""
+    wrong = outliers_res[outliers_res["protocole"].str.contains("INCORRECT", na=False)]
+    base = outliers_res.iloc[0]["pr_auc"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+
+    conts = list(wrong["contamination"])
+    prev = [float(outliers_enrich.loc[outliers_enrich["contamination"] == c,
+                                      "taux_defaut_conserves"].iloc[0]) for c in conts]
+    labels = ["référence"] + [f"{c:.0%} retirés" for c in conts]
+    axes[0].plot(labels, [outliers_enrich["taux_defaut_outliers"].iloc[0] * 0 + 0.2212] + prev,
+                 "o-", color=RED, lw=2, markersize=8)
+    for i, v in enumerate([0.2212] + prev):
+        axes[0].text(i, v + 0.0012, f"{v:.4f}", ha="center", fontsize=9, fontweight="bold")
+    axes[0].set_ylabel("Taux de défaut du jeu évalué")
+    axes[0].set_ylim(0.205, 0.226)
+    axes[0].set_title("Nettoyer l'évaluation fait chuter la prévalence", fontsize=10)
+    axes[0].grid(alpha=0.25)
+
+    vals = [base] + list(wrong["pr_auc"])
+    bars = axes[1].bar(labels, vals, color=["#9a9a9a", "#b3413e", "#8b2c2a"], width=0.55)
+    for b, v in zip(bars, vals):
+        axes[1].text(b.get_x() + b.get_width() / 2, v + 0.001, f"{v:.4f}",
+                     ha="center", fontsize=10, fontweight="bold")
+    axes[1].set_ylim(0.53, 0.58)
+    axes[1].set_ylabel("PR-AUC")
+    axes[1].set_title("La PR-AUC suit mécaniquement", fontsize=10)
+
+    fig.tight_layout()
+    fig.savefig(IMG_NEW / "prevalence_trap.png", dpi=130)
+    plt.close(fig)
+
+
 def fig_before_after():
     fig, axes = plt.subplots(1, 2, figsize=(9, 4))
     for ax, key, name in zip(axes, ["pr_auc", "roc_auc"], ["PR-AUC", "ROC-AUC"]):
@@ -369,6 +455,7 @@ def image_page(pdf, title, img_path, caption, page, text_top=None, text_bottom=N
 def build():
     fig_ablation(); fig_model_ranking(); fig_calibration(); fig_cost_threshold(); fig_before_after()
     fig_boruta(); fig_optuna_convergence(); fig_cv_vs_test()
+    fig_outliers(); fig_prevalence_trap()
     corr_mean, corr_min = fig_correlation()
 
     pdf = PdfPages(OUT_PDF)
@@ -442,12 +529,14 @@ def build():
            ("16. Évaluation sur le test set", False),
            ("17. Choix du seuil par coût métier", False),
            ("", False),
-           ("PARTIE 3 — SÉLECTION DE VARIABLES, OPTIMISATION BAYÉSIENNE, MLOPS", True),
+           ("PARTIE 3 — VARIABLES, OPTIMISATION, OUTLIERS, MLOPS", True),
            ("18. Sélection de variables par Boruta", False),
            ("19. Optimisation bayésienne avec Optuna", False),
            ("20. Quand un gain en validation ne survit pas au test", False),
-           ("21. Infrastructure MLOps : Git, DVC, MLflow", False),
-           ("22. Synthèse générale et recommandations", False)]
+           ("21. Traitement des outliers", False),
+           ("22. Le piège de la prévalence", False),
+           ("23. Infrastructure MLOps : Git, DVC, MLflow", False),
+           ("24. Synthèse générale et recommandations", False)]
     y = 0.965
     for line, is_head in toc:
         if line:
@@ -1104,9 +1193,83 @@ def build():
         fontsize=9.2, va="top", linespacing=1.5, transform=ax.transAxes)
     pdf.savefig(fig); plt.close(fig)
 
+    # ---------------------------------------------------------------- outliers
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "21. Traitement des outliers",
+               "Isolation Forest, Local Outlier Factor, DBSCAN", page=28)
+    ax = fig.add_axes([0.07, 0.72, 0.86, 0.17]); ax.axis("off")
+    ax.text(0.0, 0.98, wrap(
+        "Aucune ligne n'avait été supprimée jusqu'ici : seul le ratio de remboursement était "
+        "borné à [0, 2] lors du feature engineering. Trois détecteurs ont été testés, avec "
+        "suppression appliquée UNIQUEMENT au jeu d'entraînement de chaque pli — le jeu "
+        "d'évaluation reste intact, sans quoi les scores ne seraient plus comparables.\n\n"
+        "Rappel : les modèles à base d'arbres sont intrinsèquement robustes aux valeurs "
+        "extrêmes. Une valeur aberrante tombe simplement dans le dernier intervalle d'un "
+        "seuil de coupure, sans « tirer » le modèle comme le ferait une régression linéaire.",
+        98), fontsize=9.3, va="top", linespacing=1.5, transform=ax.transAxes)
+
+    axi = fig.add_axes([0.06, 0.41, 0.88, 0.29])
+    axi.imshow(mpimg.imread(IMG_NEW / "outliers.png")); axi.axis("off")
+
+    ax2 = fig.add_axes([0.07, 0.06, 0.86, 0.32]); ax2.axis("off")
+    worst = outliers_res[outliers_res["protocole"].str.contains("correct", na=False)]
+    worst = worst.loc[worst["pr_auc"].idxmin()]
+    enr10 = outliers_enrich.iloc[-1]
+    ax2.text(0.0, 0.97, wrap(
+        f"Résultat : aucun gain, et une dégradation qui croît avec l'agressivité du nettoyage. "
+        f"Isolation Forest à 10% coûte {worst['ecart_vs_reference']:.4f} de PR-AUC — l'écart le "
+        "plus net mesuré dans tout le projet.\n\n"
+        "La cause est visible sur le graphique de droite : les lignes flaguées contiennent "
+        f"{enr10['taux_defaut_outliers']:.1%} de défaillants contre "
+        f"{enr10['taux_defaut_conserves']:.1%} parmi celles conservées, soit "
+        f"{enr10['taux_defaut_outliers']/enr10['taux_defaut_conserves']:.2f} fois plus. C'est "
+        "logique : sur ce jeu de données, être financièrement atypique et être risqué sont "
+        "largement la même chose — utilisation extrême du plafond, dette non remboursée, "
+        "paiements erratiques. Un détecteur non supervisé ignore la cible ; il supprime donc "
+        "préférentiellement le signal que le modèle doit apprendre à reconnaître.\n\n"
+        "DBSCAN n'a quasiment rien flagué (175 lignes par pli, 0.9%). En 68 dimensions les "
+        "distances se concentrent, la notion de densité perd son sens et le paramètre eps "
+        "devient impossible à régler autrement qu'arbitrairement.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes)
+    pdf.savefig(fig); plt.close(fig)
+
+    # ---------------------------------------------------------------- piège de la prévalence
+    fig = plt.figure(figsize=A4)
+    add_header(fig, "22. Le piège de la prévalence",
+               "Pourquoi un jeu d'évaluation nettoyé fausse la mesure", page=29)
+    ax = fig.add_axes([0.07, 0.74, 0.86, 0.15]); ax.axis("off")
+    ax.text(0.0, 0.98, wrap(
+        "Le protocole a été volontairement refait de façon INCORRECTE, en supprimant aussi les "
+        "outliers du jeu d'évaluation — l'erreur classique de nombreux tutoriels. L'attente "
+        "naturelle est un score gonflé, puisqu'on retire les cas difficiles sur lesquels le "
+        "modèle est jugé. C'est l'inverse qui se produit.", 98),
+        fontsize=9.3, va="top", linespacing=1.5, transform=ax.transAxes)
+
+    axi = fig.add_axes([0.06, 0.44, 0.88, 0.28])
+    axi.imshow(mpimg.imread(IMG_NEW / "prevalence_trap.png")); axi.axis("off")
+
+    ax2 = fig.add_axes([0.07, 0.06, 0.86, 0.35]); ax2.axis("off")
+    ax2.text(0.0, 0.97, wrap(
+        "L'explication tient à la nature de la métrique. La PR-AUC dépend de la PRÉVALENCE du "
+        "jeu évalué : la valeur qu'atteindrait un classifieur aléatoire est exactement le taux "
+        "de positifs. Or nettoyer le jeu d'évaluation retire préférentiellement des défaillants, "
+        f"ce qui fait tomber ce taux de 0.2212 à {outliers_enrich.iloc[-1]['taux_defaut_conserves']:.4f}. "
+        "La PR-AUC baisse donc mécaniquement, indépendamment de toute variation de la qualité "
+        "du modèle.\n\n"
+        "L'enseignement dépasse le cas des outliers, et il est plus fort que l'intuition de "
+        "départ : un score calculé sur un jeu d'évaluation modifié n'est comparable à la "
+        "référence dans AUCUN sens — ni vers le haut, ni vers le bas. Le filtrage ne rend pas "
+        "la mesure optimiste ou pessimiste, il change la nature de ce qui est mesuré.\n\n"
+        "Conséquence pratique : si une PR-AUC bouge après un filtrage de données, la première "
+        "chose à vérifier est si la prévalence a changé, avant d'en tirer la moindre conclusion "
+        "sur le modèle. Le ROC-AUC ne présente pas cette sensibilité et constitue un meilleur "
+        "témoin dans ce cas précis.", 98),
+        fontsize=9.2, va="top", linespacing=1.5, transform=ax2.transAxes)
+    pdf.savefig(fig); plt.close(fig)
+
     # ---------------------------------------------------------------- MLOps
     fig = plt.figure(figsize=A4)
-    add_header(fig, "21. Infrastructure MLOps", "Git, DVC et MLflow", page=28)
+    add_header(fig, "23. Infrastructure MLOps", "Git, DVC et MLflow", page=30)
     ax = fig.add_axes([0.07, 0.60, 0.86, 0.29]); ax.axis("off")
     bullets(ax, [
         ("Git / GitHub :", "code, métriques au format texte, figures et rapport. Aucun artefact "
@@ -1145,21 +1308,21 @@ def build():
 
     # ---------------------------------------------------------------- synthèse générale
     fig = plt.figure(figsize=A4)
-    add_header(fig, "22. Synthèse générale et recommandations", page=29)
+    add_header(fig, "24. Synthèse générale et recommandations", page=31)
     ax = fig.add_axes([0.07, 0.30, 0.86, 0.59]); ax.axis("off")
     bullets(ax, [
         ("Ce qui a produit un gain :", "le tuning d'hyperparamètres, et lui seul. Le passage de "
          f"{BASELINE_TEST['pr_auc']:.4f} à {FINAL_TEST['pr_auc']:.4f} de PR-AUC sur le test "
          f"(+{100*(FINAL_TEST['pr_auc']/BASELINE_TEST['pr_auc']-1):.1f}%) vient de la correction "
          "d'un sur-apprentissage des paramètres initiaux."),
-        ("Cinq pistes sans effet :", "le feature engineering (4 jeux indiscernables), le deep "
+        ("Six pistes sans effet :", "le feature engineering (4 jeux indiscernables), le deep "
          "learning séquentiel (LSTM/GRU au niveau d'un simple MLP), le blending (+0.0014 sur "
          "682 combinaisons), la sélection Boruta (-0.0030), et l'optimisation bayésienne "
-         "(gain en validation croisée annulé sur le test)."),
+         "(gain en validation croisée annulé sur le test), et le nettoyage des outliers (-0.0082 : on supprime des défaillants)."),
         ("Le plafond est dans les données :", "quatre preuves indépendantes — corrélation "
          f"inter-modèles de {corr_mean:.3f}, blending sans effet, convergence de deux boostings "
          "distincts au millième, et échec de deux outils attaquant le problème par des angles "
-         "différents (Boruta et Optuna)."),
+         "différents (Boruta, Optuna, détection d'outliers)."),
         ("Le modèle reste utile :", "il sépare un groupe à 4.5% de risque d'un groupe à 70.2%, "
          "soit un rapport de 15x, et il est bien calibré — directement exploitable pour "
          "prioriser des actions de recouvrement."),
@@ -1174,7 +1337,7 @@ def build():
     ax2.text(0.0, 0.97, "Recommandation principale", fontsize=11.5, fontweight="bold",
              color=NAVY, transform=ax2.transAxes, va="top")
     ax2.text(0.0, 0.80, wrap(
-        "Six approches ont été poussées jusqu'à leur limite sans franchir le plafond. Pour "
+        "Sept approches ont été poussées jusqu'à leur limite sans franchir le plafond. Pour "
         "progresser, il faut de nouvelles DONNÉES — revenus, ancienneté bancaire, encours dans "
         "d'autres établissements, incidents de paiement externes — et non de nouveaux "
         "algorithmes. Investir dans l'enrichissement des données aurait ici un rendement bien "

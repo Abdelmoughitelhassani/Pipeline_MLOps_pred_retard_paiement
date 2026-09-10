@@ -61,7 +61,7 @@ d'envoyer les runs vers DagsHub sans modifier une ligne de code.
 | `run_experiments.py` | Compare 11 modèles + tuning. **Reprenable** : un modèle déjà calculé est ignoré au relancement | ~40 min |
 | `train_final.py` | Entraîne le modèle retenu, le sérialise, l'enregistre au registre MLflow | ~3 min |
 | `final_eval.py` | Évalue sur le test set et calcule les seuils par coût métier | ~2 min |
-| `build_report.py` | Génère le rapport PDF de 29 pages | ~1 min |
+| `build_report.py` | Génère le rapport PDF de 31 pages | ~1 min |
 
 `run_experiments.py` mérite un mot : il sauvegarde les prédictions **out-of-fold** de chaque
 modèle dans `reports/oof/`. C'est ce qui rend le blending gratuit ensuite (il suffit de
@@ -153,7 +153,7 @@ visibles dans les diffs git.
 `reports/figures/` contient les graphiques générés par `build_report.py`, et
 `reports/figures/notebook/` ceux extraits du notebook d'analyse exploratoire.
 
-`rapport_pipeline_credit_default.pdf` — le rapport complet de 29 pages, en trois parties :
+`rapport_pipeline_credit_default.pdf` — le rapport complet de 31 pages, en trois parties :
 pipeline de base, optimisation et analyse du plafond, puis sélection de variables et MLOps.
 **Toutes ses valeurs sont lues depuis les fichiers ci-dessus** : régénérer le PDF après une
 nouvelle expérience suffit à le mettre à jour, rien n'est saisi à la main.
