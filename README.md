@@ -142,6 +142,22 @@ reconstruire les features à chaque exécution.
 > Elle est reprenable : les prédictions out-of-fold déjà calculées sont conservées et ignorées
 > au relancement.
 
+### Servir le modèle
+
+```bash
+uvicorn src.serve:app --reload --port 8000
+```
+
+| Route | Rôle |
+|---|---|
+| `GET /health` | État du service, nom du modèle, seuil appliqué |
+| `POST /predict` | Probabilité de défaut et niveau de risque (HIGH/LOW) |
+| `GET /predict/example` | Deux profils de test, prêts à copier-coller |
+
+Documentation interactive sur `http://localhost:8000/docs`. L'API prend les **23 variables
+brutes** du dossier client et calcule les features côté serveur, via le même code qu'à
+l'entraînement — c'est ce qui garantit l'absence de décalage entraînement/service.
+
 ### Historique des expériences
 
 L'historique est consultable en ligne dans l'onglet **Experiments** du

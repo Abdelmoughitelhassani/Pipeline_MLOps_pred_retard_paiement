@@ -51,6 +51,20 @@ Le cœur du projet. Il fait trois choses :
 `train_test_indices()` fournit le découpage stratifié partagé par toutes les expériences,
 ce qui garantit que tous les chiffres du projet sont comparables entre eux.
 
+### `src/serve.py`
+Service d'inférence FastAPI. Charge le modèle une fois au démarrage et expose trois routes :
+`GET /health` (état et identité du modèle), `POST /predict` (probabilité de défaut et niveau
+de risque), `GET /predict/example` (deux profils de test prêts à copier-coller).
+
+L'API attend les **23 variables brutes**, pas les 68 features dérivées : le calcul passe par
+`data_prep.prepare_inference()`, donc exactement le même code qu'à l'entraînement. Demander
+les features à l'appelant l'obligerait à réimplémenter cette logique, et le moindre écart
+fausserait les prédictions sans lever d'erreur.
+
+```bash
+uvicorn src.serve:app --reload --port 8000    # http://localhost:8000/docs
+```
+
 ### `src/tracking.py`
 Configuration centralisée de MLflow. Bascule automatiquement entre la base SQLite locale
 (`mlflow.db`) et un serveur distant si `MLFLOW_TRACKING_URI` est défini — c'est ce qui permet

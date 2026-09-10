@@ -45,9 +45,47 @@ def load_clean(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
     df = pd.read_excel(path, sheet_name=0, header=1)
     df = df.rename(columns={"PAY_0": "PAY_1", "default payment next month": "DEFAULT"})
     df.columns = df.columns.str.strip()
-    df["EDUCATION"] = df["EDUCATION"].replace({0: 4, 5: 4, 6: 4})
-    df["MARRIAGE"] = df["MARRIAGE"].replace({0: 3})
+    return apply_category_remap(df)
+
+
+EDUCATION_REMAP = {0: 4, 5: 4, 6: 4}
+MARRIAGE_REMAP = {0: 3}
+
+
+def apply_category_remap(df: pd.DataFrame) -> pd.DataFrame:
+    """Fusionne les codes catégoriels non documentés avec la catégorie « autre ».
+
+    Extrait dans une fonction dédiée pour que l'entraînement et l'inférence appliquent
+    rigoureusement la même règle. Un écart entre les deux produirait un décalage
+    silencieux entre ce que le modèle a appris et ce qu'il reçoit en production.
+    """
+    df = df.copy()
+    df["EDUCATION"] = df["EDUCATION"].replace(EDUCATION_REMAP)
+    df["MARRIAGE"] = df["MARRIAGE"].replace(MARRIAGE_REMAP)
     return df
+
+
+def prepare_inference(raw: pd.DataFrame, feature_cols: list[str] | None = None) -> pd.DataFrame:
+    """Transforme des enregistrements bruts en matrice prête pour le modèle.
+
+    Attend les 23 colonnes d'origine (`RAW_FEATURES`) et applique exactement la même
+    chaîne qu'à l'entraînement : recodage des catégories puis feature engineering.
+    C'est le seul chemin que le service d'inférence doit emprunter.
+    """
+    missing = [c for c in RAW_FEATURES if c not in raw.columns]
+    if missing:
+        raise ValueError(f"colonnes manquantes : {missing}")
+
+    frame = add_features(apply_category_remap(raw))
+    cols = feature_cols or (RAW_FEATURES + ENGINEERED_FEATURES)
+    absent = [c for c in cols if c not in frame.columns]
+    if absent:
+        raise ValueError(f"features non produites : {absent}")
+
+    out = frame[cols].astype(float)
+    if not np.isfinite(out.to_numpy()).all():
+        raise ValueError("valeurs non finies produites par le feature engineering")
+    return out
 
 
 # --------------------------------------------------------------------------- features
