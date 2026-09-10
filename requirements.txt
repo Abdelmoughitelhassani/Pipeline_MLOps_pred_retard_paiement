@@ -1,6 +1,7 @@
 Boruta==0.4.3
 catboost==1.2.7
 dvc==3.67.1
+evidently==0.7.21
 fastapi==0.141.1
 httpx==0.28.1
 imbalanced-learn==0.12.4

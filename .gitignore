@@ -30,3 +30,8 @@ catboost_info/
 /models/
 /mlflow.db
 /mlartifacts
+
+# Rapports de dérive : le HTML embarque Plotly (~8 Mo) et se régénère à la demande.
+# La synthèse JSON, elle, est versionnée : légère, diffable, elle donne l'historique
+# de la dérive commit après commit.
+/monitoring/*.html

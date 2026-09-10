@@ -182,6 +182,24 @@ limité à 2 CPU et 2 Go de mémoire.
 > route les appels à `127.0.0.1:8000` de préférence au conteneur (liaison plus spécifique).
 > Arrêter le serveur local, ou publier le conteneur sur un autre port.
 
+### Supervision de la dérive
+
+```bash
+python monitoring/drift_report.py                                  # simulation
+python monitoring/drift_report.py --current lot.parquet --fail-on-drift
+```
+
+Compare chaque variable d'un lot entrant à sa distribution dans le jeu d'entraînement.
+Produit un rapport HTML lisible et une synthèse JSON exploitable par une supervision.
+
+**Attention au seuil d'alerte.** Evidently considère par convention qu'un jeu a dérivé
+au-delà de 50 % de colonnes touchées. Sur ce projet, un lot simulant une récession
+(plafonds réduits de 55 %, retards aggravés, remboursements divisés par trois) ne fait
+dériver que 20.6 % des 68 colonnes — beaucoup sont des agrégats dérivés qui diluent la
+part. Avec le seuil par défaut, **aucune alerte ne serait levée**. Le paramètre
+`--drift-share-threshold` permet d'abaisser ce seuil ; 0.15 déclenche correctement sur ce
+scénario.
+
 ### Historique des expériences
 
 L'historique est consultable en ligne dans l'onglet **Experiments** du

@@ -1,0 +1,13 @@
+{
+  "drift_detected": false,
+  "n_drifted_columns": 0,
+  "share_drifted_columns": 0.0,
+  "drifted_columns": [],
+  "drift_share_threshold": 0.5,
+  "generated_at": "2026-09-10T15:07:33+00:00",
+  "reference": "data\\processed\\train.parquet",
+  "reference_rows": 24000,
+  "current_source": "SIMULATION \u2014 1000 derni\u00e8res lignes de test.parquet",
+  "current_rows": 1000,
+  "n_columns_compared": 68
+}

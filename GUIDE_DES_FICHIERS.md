@@ -98,6 +98,21 @@ moyenner des fichiers) et ce qui a permis de survivre aux interruptions du syst�
 | `exp_outliers.py` | Isolation Forest, LOF, DBSCAN — protocoles correct et incorrect | Aucun gain ; démontre le piège de la prévalence |
 | `mlflow_backfill.py` | Réinjecte l'historique dans MLflow **sans réentraîner**. Idempotent | 40 runs restaurés depuis les fichiers |
 
+### Supervision
+
+| Script | Rôle |
+|---|---|
+| `monitoring/drift_report.py` | Compare la distribution d'un lot entrant au jeu d'entraînement et produit un rapport Evidently. Conçu pour la production : `--current` accepte n'importe quel lot, `--fail-on-drift` renvoie un code de sortie exploitable par une CI ou un cron |
+
+```bash
+python monitoring/drift_report.py                                  # simulation
+python monitoring/drift_report.py --current lot.parquet --fail-on-drift
+```
+
+Produit `monitoring/drift_report.html` (lecture humaine, non versionné car ~8 Mo) et
+`monitoring/drift_report.json` (synthèse chiffrée, versionnée pour suivre la dérive
+dans l'historique git).
+
 ### Scripts historiques (remplacés)
 
 `exp_tabular.py` et `exp_deep.py` étaient les premières versions de la comparaison de modèles.
