@@ -158,6 +158,30 @@ Documentation interactive sur `http://localhost:8000/docs`. L'API prend les **23
 brutes** du dossier client et calcule les features côté serveur, via le même code qu'à
 l'entraînement — c'est ce qui garantit l'absence de décalage entraînement/service.
 
+### Conteneurisation
+
+```bash
+docker compose up --build -d          # http://localhost:8000
+docker compose ps                     # état et santé
+docker compose logs -f scoring
+docker compose down
+```
+
+L'image ne contient que les dépendances d'inférence (`requirements-serve.txt`) : ni PyTorch,
+ni MLflow, ni DVC, ni CatBoost/LightGBM. Elle utilise aussi `xgboost-cpu` plutôt que
+`xgboost`, dont la roue Linux embarque 476 Mo de bibliothèques CUDA inutiles à un service
+CPU — **l'image passe ainsi de 1.92 Go à 713 Mo**, à prédictions rigoureusement identiques.
+
+Le conteneur tourne sans privilèges, expose une sonde de vivacité sur `/health` et se voit
+limité à 2 CPU et 2 Go de mémoire.
+
+> **Prérequis** : `models/final_model.joblib` est suivi par DVC, pas par git. Sur un dépôt
+> fraîchement cloné, lancer `dvc pull` avant `docker compose build`.
+
+> **Conflit de port** : si un `uvicorn` local tourne déjà sur le port 8000, Windows lui
+> route les appels à `127.0.0.1:8000` de préférence au conteneur (liaison plus spécifique).
+> Arrêter le serveur local, ou publier le conteneur sur un autre port.
+
 ### Historique des expériences
 
 L'historique est consultable en ligne dans l'onglet **Experiments** du

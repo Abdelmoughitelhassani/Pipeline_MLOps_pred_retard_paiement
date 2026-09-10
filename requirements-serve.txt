@@ -1,0 +1,14 @@
+# Dépendances du SERVICE d'inférence uniquement — pas de l'entraînement.
+# Ni PyTorch, ni MLflow, ni DVC, ni CatBoost/LightGBM : ce sont des outils de
+# recherche, inutiles pour servir un modèle déjà entraîné.
+#
+# xgboost-cpu et non xgboost : la roue Linux standard embarque les bibliothèques
+# CUDA de NVIDIA (476 Mo) dont un service CPU n'a aucun usage.
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.5
+joblib==1.6.0
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.2
+xgboost-cpu==2.1.1

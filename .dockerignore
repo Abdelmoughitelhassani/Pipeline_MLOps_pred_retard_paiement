@@ -1,0 +1,27 @@
+# Contexte de build minimal. Sans ce fichier, Docker enverrait au démon
+# l'environnement virtuel (1.8 Go) et toutes les données — build très lent
+# et image potentiellement énorme.
+
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+.git/
+.dvc/cache/
+.dvc/tmp/
+
+# Données et artefacts d'expérimentation : inutiles pour servir le modèle
+data/
+mlruns/
+mlartifacts/
+mlflow.db
+catboost_info/
+notebooks/
+reports/
+
+# Le dossier models/ est volontairement CONSERVÉ : il contient l'artefact servi.
+
+.vscode/
+.idea/
+*.md

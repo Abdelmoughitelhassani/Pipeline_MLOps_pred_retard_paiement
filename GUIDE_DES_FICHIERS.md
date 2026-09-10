@@ -124,7 +124,11 @@ Elles ont été interrompues par des manques de mémoire, ce qui a motivé la r�
 | `dvc.yaml` | Le pipeline : étapes, dépendances, sorties. C'est lui qui sait quoi relancer quand quelque chose change |
 | `dvc.lock` | État figé du pipeline (hashes des entrées/sorties). Généré, ne pas éditer à la main |
 | `.dvc/config` | Adresse du stockage distant DagsHub. **Sans identifiant** — ceux-ci vivent dans `.dvc/config.local`, ignoré par git |
-| `requirements.txt` | Versions figées des dépendances |
+| `requirements.txt` | Versions figées des dépendances d'entraînement |
+| `requirements-serve.txt` | Dépendances du service seul — 8 paquets, avec `xgboost-cpu` |
+| `Dockerfile` | Image de service : deps minimales, utilisateur non-root, sonde `/health` |
+| `docker-compose.yml` | Orchestration : port 8000, healthcheck, limites CPU/mémoire |
+| `.dockerignore` | Exclut `.venv` (1.8 Go) et les données du contexte de build |
 | `.gitignore` | Exclut l'environnement virtuel, les caches, et les artefacts confiés à DVC |
 
 ---

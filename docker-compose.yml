@@ -1,0 +1,45 @@
+# Service de scoring de défaut de paiement.
+#
+#   docker compose up --build        démarre le service sur http://localhost:8000
+#   docker compose ps                état et santé du conteneur
+#   docker compose logs -f scoring   journaux en continu
+#   docker compose down              arrêt et nettoyage
+
+services:
+  scoring:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: credit-default-scoring:1.0.0
+    container_name: credit-default-scoring
+    ports:
+      - "8000:8000"
+
+    # Le modèle est copié dans l'image, ce qui rend le conteneur autonome et reproductible :
+    # une image donnée sert toujours exactement le même modèle. Pour itérer sans reconstruire
+    # (remplacer le modèle à chaud pendant le développement), décommenter le montage ci-dessous.
+    # volumes:
+    #   - ./models:/app/models:ro
+
+    environment:
+      - PYTHONUNBUFFERED=1
+
+    # `unless-stopped` plutôt que `always` : un redémarrage automatique après un arrêt
+    # volontaire masquerait les manipulations en cours.
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    # Garde-fous : un service de scoring ne doit pas pouvoir saturer la machine hôte
+    # si une requête pathologique fait exploser la mémoire.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
