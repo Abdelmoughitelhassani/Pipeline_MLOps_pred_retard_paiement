@@ -72,15 +72,18 @@ Le rôle détaillé de chaque fichier est documenté dans
 **[GUIDE_DES_FICHIERS.md](GUIDE_DES_FICHIERS.md)**.
 
 ```
-data/raw/            Données source (suivies par DVC)
+data/raw/            Données source, jamais modifiées (DVC)
+data/processed/      train.parquet et test.parquet, produits par l'étape prepare (DVC)
 notebooks/           01_eda_analyse_donnees.ipynb — EDA et pipeline de base
 src/
-  data_prep.py       Chargement, nettoyage, feature engineering (tabulaire + séquentiel)
+  data_prep.py       Chargement, nettoyage, feature engineering, matérialisation
   tracking.py        Configuration MLflow centralisée
 scripts/
+  prepare_data.py    data/raw/ -> data/processed/ (seule étape lisant le brut)
   exp_ablation.py    Diagnostic : effet du feature engineering à modèle constant
   exp_boruta.py      Sélection de features par Boruta (variables fantômes)
   exp_optuna.py      Tuning bayésien Optuna, comparé à RandomizedSearchCV
+  exp_outliers.py    Détection d'outliers : Isolation Forest, LOF, DBSCAN
   run_experiments.py Comparaison des 11 modèles + tuning (reprenable après interruption)
   train_final.py     Entraîne, sérialise et enregistre le modèle retenu
   final_eval.py      Évaluation sur le test + seuils par coût métier
@@ -120,6 +123,7 @@ Le drapeau `--local` écrit dans `.dvc/config.local`, volontairement ignoré par
 
 ```bash
 dvc repro                 # relance uniquement les étapes dont une dépendance a changé
+dvc repro prepare         # data/raw/ -> data/processed/ (train.parquet, test.parquet)
 dvc repro train           # une étape précise
 dvc metrics show          # métriques du modèle courant
 dvc dag                   # visualise le graphe de dépendances
@@ -127,6 +131,12 @@ dvc dag                   # visualise le graphe de dépendances
 
 Modifier un hyperparamètre dans `params.yaml` suffit à invalider les étapes concernées :
 `dvc repro` les relancera seules.
+
+**Une seule étape lit les données brutes** — `prepare` — et écrit `data/processed/`
+au format Parquet (réglable par `data.processed_format`). Tout l'aval consomme ces
+fichiers préparés. Le pipeline reste donc identique quel que soit le volume : on
+prépare une fois, puis on lit un format colonnaire compressé plutôt que de
+reconstruire les features à chaque exécution.
 
 > L'étape `experiments` prend environ 40 minutes (11 modèles × 5 folds, dont du deep learning).
 > Elle est reprenable : les prédictions out-of-fold déjà calculées sont conservées et ignorées

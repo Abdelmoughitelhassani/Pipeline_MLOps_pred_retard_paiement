@@ -179,3 +179,80 @@ def train_test_indices(y, test_size: float = TEST_SIZE, random_state: int = RAND
     """Split stratifié partagé par toutes les expériences (indices positionnels)."""
     idx = np.arange(len(y))
     return train_test_split(idx, test_size=test_size, stratify=y, random_state=random_state)
+
+
+# --------------------------------------------------------------------------- matérialisation
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+TARGET = "DEFAULT"
+
+
+def _processed_path(split: str, fmt: str) -> Path:
+    return PROCESSED_DIR / f"{split}.{fmt}"
+
+
+def save_processed(fmt: str = "parquet", test_size: float = TEST_SIZE,
+                   random_state: int = RANDOM_STATE) -> dict:
+    """Écrit `data/processed/train.<fmt>` et `test.<fmt>`, cible incluse.
+
+    Matérialiser les données transformées découple la préparation de l'entraînement :
+    les étapes en aval lisent un fichier déjà nettoyé, encodé et découpé, au lieu de
+    reconstruire les features à chaque exécution. Sur un gros volume, c'est ce qui permet
+    de préparer une fois puis de lire par morceaux, sans jamais charger le brut en entier.
+
+    Parquet est le format par défaut : colonnaire, compressé et typé, il se lit colonne
+    par colonne. Le CSV reste possible (`fmt="csv"`) pour l'inspection à l'œil nu, au prix
+    d'un fichier bien plus volumineux et sans schéma.
+    """
+    if fmt not in ("parquet", "csv"):
+        raise ValueError(f"format non supporté : {fmt}")
+
+    X, y, cols = get_tabular()
+    idx_train, idx_test = train_test_indices(y, test_size, random_state)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+    info = {}
+    for split, idx in (("train", idx_train), ("test", idx_test)):
+        frame = X.iloc[idx].copy()
+        frame[TARGET] = y.iloc[idx].to_numpy()
+        path = _processed_path(split, fmt)
+        if fmt == "parquet":
+            frame.to_parquet(path, index=False, compression="snappy")
+        else:
+            frame.to_csv(path, index=False)
+        info[split] = {"path": path, "rows": len(frame), "cols": frame.shape[1],
+                       "default_rate": float(frame[TARGET].mean()),
+                       "size_mb": path.stat().st_size / 1e6}
+    info["features"] = cols
+    return info
+
+
+def load_split(split: str, fmt: str = "parquet") -> tuple[pd.DataFrame, pd.Series]:
+    """Lit un jeu matérialisé et retourne (X, y)."""
+    path = _processed_path(split, fmt)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} introuvable — lancer `python scripts/prepare_data.py` "
+            f"ou `dvc repro prepare`.")
+    frame = pd.read_parquet(path) if fmt == "parquet" else pd.read_csv(path)
+    return frame.drop(columns=[TARGET]), frame[TARGET]
+
+
+def get_splits(fmt: str = "parquet", fallback: bool = True):
+    """Retourne (X_train, y_train, X_test, y_test, feature_cols).
+
+    Lit `data/processed/` si les fichiers existent — c'est le chemin normal une fois le
+    pipeline exécuté. Sinon, et si `fallback` est vrai, recalcule tout en mémoire depuis
+    les données brutes, ce qui garde les scripts exécutables sur un dépôt fraîchement
+    cloné avant le premier `dvc repro`.
+    """
+    try:
+        X_train, y_train = load_split("train", fmt)
+        X_test, y_test = load_split("test", fmt)
+        return X_train, y_train, X_test, y_test, list(X_train.columns)
+    except FileNotFoundError:
+        if not fallback:
+            raise
+        X, y, cols = get_tabular()
+        idx_train, idx_test = train_test_indices(y)
+        return (X.iloc[idx_train], y.iloc[idx_train],
+                X.iloc[idx_test], y.iloc[idx_test], cols)

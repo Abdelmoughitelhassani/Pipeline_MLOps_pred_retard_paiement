@@ -19,18 +19,19 @@ stages:
   experiments:
     cmd: python scripts/run_experiments.py
     deps:
-    - path: data/raw/default_of_credit_card_clients.xls
+    - path: data/processed
       hash: md5
-      md5: d8462d5d1296c0d8c9fd2499cb8f9921
-      size: 5540352
+      md5: d601260af38eccf3ac302f25269e2613.dir
+      size: 7088371
+      nfiles: 2
     - path: scripts/run_experiments.py
       hash: md5
-      md5: b647242150f4842e26d280c1aa6aa707
-      size: 16483
+      md5: 64dc662045bd4157a46e740cf1569f04
+      size: 17278
     - path: src/data_prep.py
       hash: md5
-      md5: 841fd733e7fb91a89c9c9f85252febec
-      size: 8864
+      md5: 3d3c0ee84127b4b419e0b967e6b53de2
+      size: 12299
     params:
       params.yaml:
         cv:
@@ -69,18 +70,19 @@ stages:
   train:
     cmd: python scripts/train_final.py
     deps:
-    - path: data/raw/default_of_credit_card_clients.xls
+    - path: data/processed
       hash: md5
-      md5: d8462d5d1296c0d8c9fd2499cb8f9921
-      size: 5540352
+      md5: d601260af38eccf3ac302f25269e2613.dir
+      size: 7088371
+      nfiles: 2
     - path: scripts/train_final.py
       hash: md5
-      md5: b95a913c29bb9f367d99bc5f524064af
-      size: 6917
+      md5: 0fe1e798220832713e77f3fc235bbfe5
+      size: 6964
     - path: src/data_prep.py
       hash: md5
-      md5: 841fd733e7fb91a89c9c9f85252febec
-      size: 8864
+      md5: 3d3c0ee84127b4b419e0b967e6b53de2
+      size: 12299
     - path: src/tracking.py
       hash: md5
       md5: 92f9c6f1e6f2580cd42ca611e9de3029
@@ -131,22 +133,23 @@ stages:
   evaluate:
     cmd: python scripts/final_eval.py
     deps:
-    - path: data/raw/default_of_credit_card_clients.xls
+    - path: data/processed
       hash: md5
-      md5: d8462d5d1296c0d8c9fd2499cb8f9921
-      size: 5540352
+      md5: d601260af38eccf3ac302f25269e2613.dir
+      size: 7088371
+      nfiles: 2
     - path: reports/best_params.json
       hash: md5
       md5: c16a701dfdbff9056ecc6c13349b4b5d
       size: 875
     - path: scripts/final_eval.py
       hash: md5
-      md5: 43f8633fabc2db7ce30c9f187903ec64
-      size: 5054
+      md5: 089d686f9afa37f4c49824ef95eb01a7
+      size: 5177
     - path: src/data_prep.py
       hash: md5
-      md5: 841fd733e7fb91a89c9c9f85252febec
-      size: 8864
+      md5: 3d3c0ee84127b4b419e0b967e6b53de2
+      size: 12299
     params:
       params.yaml:
         split:
@@ -204,10 +207,50 @@ stages:
       size: 531
     - path: scripts/build_report.py
       hash: md5
-      md5: 51b3dc6eb3d6d60f3da047c4e8ec47f6
-      size: 73560
+      md5: 8ee977e2be942d5c65c1d653068c2766
+      size: 84475
     outs:
     - path: reports/rapport_pipeline_credit_default.pdf
       hash: md5
-      md5: 9d5052359f166b35530bb9dfaf0c107d
-      size: 672186
+      md5: 5eb2ff29c5543716533f9782d50bcc5c
+      size: 757250
+  prepare:
+    cmd: python scripts/prepare_data.py
+    deps:
+    - path: data/raw/default_of_credit_card_clients.xls
+      hash: md5
+      md5: d8462d5d1296c0d8c9fd2499cb8f9921
+      size: 5540352
+    - path: scripts/prepare_data.py
+      hash: md5
+      md5: 77c1e00d64c45a84fdbc1b1441515a38
+      size: 2805
+    - path: src/data_prep.py
+      hash: md5
+      md5: 3d3c0ee84127b4b419e0b967e6b53de2
+      size: 12299
+    params:
+      params.yaml:
+        data:
+          raw_file: data/raw/default_of_credit_card_clients.xls
+          education_remap:
+            0: 4
+            5: 4
+            6: 4
+          marriage_remap:
+            0: 3
+          processed_format: parquet
+        split:
+          test_size: 0.2
+          random_state: 42
+          stratify: true
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: d601260af38eccf3ac302f25269e2613.dir
+      size: 7088371
+      nfiles: 2
+    - path: reports/data_summary.json
+      hash: md5
+      md5: ab3b9ab91bfd5b590b049637db0e8232
+      size: 1666

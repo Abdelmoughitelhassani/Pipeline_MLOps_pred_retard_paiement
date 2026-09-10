@@ -6,6 +6,12 @@ data:
   # Codes non documentés dans la doc UCI, fusionnés avec la catégorie « autre » du schéma
   education_remap: {0: 4, 5: 4, 6: 4}
   marriage_remap: {0: 3}
+  # Format des données matérialisées dans data/processed/.
+  # parquet : colonnaire, compressé, typé — se lit par colonne et par morceaux, seul
+  #           format tenable quand le volume grossit.
+  # csv     : lisible à l'œil nu sans outil, mais non compressé et sans schéma ;
+  #           à réserver à l'inspection ponctuelle, pas aux gros volumes.
+  processed_format: parquet
 
 split:
   test_size: 0.20

@@ -10,6 +10,8 @@ Le projet s'organise en quatre couches :
 
 ```
 data/raw/          les données brutes, jamais modifiées
+      |            <- étape `prepare` : nettoyage, features, découpage
+data/processed/    train.parquet et test.parquet, prêts à l'emploi
       |
 src/               le code réutilisable (chargement, features, config MLflow)
       |
@@ -17,6 +19,11 @@ scripts/           les scripts exécutables (expériences, entraînement, rappor
       |
 reports/ models/   tout ce qui est produit : métriques, figures, modèles, rapport
 ```
+
+**Une seule étape lit les données brutes** : `prepare`. Tout l'aval consomme
+`data/processed/`. Ce découplage est ce qui permet au pipeline de rester identique quel que
+soit le volume : sur un gros jeu de données, on prépare une fois puis on lit un format
+colonnaire compressé, au lieu de reconstruire les features à chaque exécution.
 
 Une règle traverse le projet : **le code et les résultats légers vont dans git, les
 artefacts lourds vont dans DVC**. Git ne conserve alors que des pointeurs `.dvc` porteurs
@@ -57,6 +64,7 @@ d'envoyer les runs vers DagsHub sans modifier une ligne de code.
 
 | Script | Rôle | Durée |
 |---|---|---|
+| `prepare_data.py` | **Point d'entrée du pipeline** : lit `data/raw/`, nettoie, construit les features, découpe en train/test stratifié et écrit `data/processed/` | ~15 s |
 | `exp_ablation.py` | Compare 4 jeux de features à modèle constant. Répond à « le feature engineering est-il le goulot ? » | ~2 min |
 | `run_experiments.py` | Compare 11 modèles + tuning. **Reprenable** : un modèle déjà calculé est ignoré au relancement | ~40 min |
 | `train_final.py` | Entraîne le modèle retenu, le sérialise, l'enregistre au registre MLflow | ~3 min |
@@ -115,6 +123,8 @@ Récupérables par `dvc pull`.
 | Artefact | Taille | Contenu |
 |---|---|---|
 | `data/raw/default_of_credit_card_clients.xls` | 5.4 Mo | Données source UCI, 30 000 clients, jamais modifiées |
+| `data/processed/train.parquet` | 5.4 Mo | 24 000 lignes × 68 features + cible, nettoyées et découpées |
+| `data/processed/test.parquet` | 1.4 Mo | 6 000 lignes, même schéma — jamais utilisé pour décider |
 | `reports/oof/*.npy` | 2.1 Mo | Prédictions out-of-fold des 11 modèles |
 | `models/final_model.joblib` | 829 Ko | Modèle sérialisé + liste des features + seuil de décision |
 | `models/model_card.json` | 3 Ko | Carte du modèle : config, métriques, données d'entraînement, seuil |
@@ -147,6 +157,7 @@ visibles dans les diffs git.
 | `outliers_enrichment.csv` | Taux de défaut parmi les lignes flaguées — explique pourquoi le nettoyage nuit |
 | `final_evaluation.json` | Métriques finales sur le test set (déclaré comme métrique DVC) |
 | `cost_thresholds.csv` | Seuil optimal selon le rapport de coût métier |
+| `data_summary.json` | Schéma des données préparées : format, nombre de features, lignes et taux de défaut par jeu |
 
 ### Figures et rapport
 

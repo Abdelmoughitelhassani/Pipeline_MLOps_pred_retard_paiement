@@ -65,11 +65,10 @@ def main() -> None:
     cfg, cv_cfg = params["final_model"], params["cv"]
     ratio = params["threshold"]["default_ratio"]
 
-    X, y, feature_cols = dp.get_tabular()
-    idx_train, idx_test = dp.train_test_indices(
-        y, test_size=params["split"]["test_size"], random_state=params["split"]["random_state"])
-    X_train, y_train = X.iloc[idx_train], y.iloc[idx_train]
-    X_test, y_test = X.iloc[idx_test], y.iloc[idx_test]
+    # Lit data/processed/ produit par l'étape `prepare` ; retombe sur un calcul en
+    # mémoire si le pipeline n'a pas encore été exécuté (dépôt fraîchement cloné).
+    fmt = params["data"].get("processed_format", "parquet")
+    X_train, y_train, X_test, y_test, feature_cols = dp.get_splits(fmt=fmt)
 
     n_neg, n_pos = np.bincount(y_train)
     spw = n_neg / n_pos
@@ -115,8 +114,9 @@ def main() -> None:
         "n_features": len(feature_cols),
         "features": feature_cols,
         "data": {"source": str(dp.DEFAULT_DATA_PATH.relative_to(ROOT)),
-                 "n_total": int(len(y)), "n_train": int(len(idx_train)),
-                 "n_test": int(len(idx_test)), "default_rate": float(y.mean())},
+                 "n_total": int(len(y_train) + len(y_test)), "n_train": int(len(y_train)),
+                 "n_test": int(len(y_test)),
+                 "default_rate": float(y_train.mean())},
         "threshold": {"cost_ratio_FN_FP": ratio, **thr_info},
         "metrics": {**oof_metrics, **test_metrics},
         "confusion_matrix_test": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},

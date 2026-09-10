@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 from sklearn.metrics import (average_precision_score, classification_report,
                              confusion_matrix, roc_auc_score)
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
@@ -57,12 +58,10 @@ def cost_threshold_table(y_true, proba, ratios=(2, 3, 5, 10, 20)) -> pd.DataFram
 
 
 def main() -> None:
-    X, y, cols = dp.get_tabular()
-    idx_train, idx_test = dp.train_test_indices(y)
+    cfg = yaml.safe_load((ROOT / "params.yaml").read_text(encoding="utf-8"))
+    X_train, y_train, X_test, y_test, cols = dp.get_splits(
+        fmt=cfg["data"].get("processed_format", "parquet"))
     params = json.loads(PARAMS_FILE.read_text(encoding="utf-8"))["xgboost"]
-
-    X_train, y_train = X.iloc[idx_train], y.iloc[idx_train]
-    X_test, y_test = X.iloc[idx_test], y.iloc[idx_test]
     n_neg, n_pos = np.bincount(y_train)
     spw = n_neg / n_pos
 

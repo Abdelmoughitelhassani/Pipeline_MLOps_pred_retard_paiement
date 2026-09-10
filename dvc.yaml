@@ -7,6 +7,24 @@
 
 stages:
 
+  prepare:
+    desc: >-
+      Nettoyage, feature engineering et découpage stratifié.
+      Seule étape qui lit les données brutes : tout l'aval consomme data/processed/,
+      ce qui permet de préparer une fois puis de lire par morceaux quand le volume grossit.
+    cmd: python scripts/prepare_data.py
+    deps:
+      - scripts/prepare_data.py
+      - src/data_prep.py
+      - data/raw/default_of_credit_card_clients.xls
+    params:
+      - data
+      - split
+    outs:
+      - data/processed
+      - reports/data_summary.json:
+          cache: false
+
   ablation:
     desc: Diagnostic — 4 jeux de features comparés à modèle constant
     cmd: python scripts/exp_ablation.py
@@ -23,7 +41,7 @@ stages:
     deps:
       - scripts/run_experiments.py
       - src/data_prep.py
-      - data/raw/default_of_credit_card_clients.xls
+      - data/processed
     params:
       - cv
       - tuning
@@ -44,7 +62,7 @@ stages:
       - scripts/train_final.py
       - src/data_prep.py
       - src/tracking.py
-      - data/raw/default_of_credit_card_clients.xls
+      - data/processed
     params:
       - final_model
       - split
@@ -62,7 +80,7 @@ stages:
       - scripts/final_eval.py
       - src/data_prep.py
       - reports/best_params.json
-      - data/raw/default_of_credit_card_clients.xls
+      - data/processed
     params:
       - threshold
       - split

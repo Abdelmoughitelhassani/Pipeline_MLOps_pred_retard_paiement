@@ -342,8 +342,14 @@ def main() -> None:
     ap.add_argument("--stage", choices=["tune", "oof", "analyze", "all"], default="all")
     args = ap.parse_args()
 
-    X, y, cols = dp.get_tabular()
-    idx_train, idx_test = dp.train_test_indices(y)
+    # Reconstitue X/y complets à partir des jeux matérialisés : les expériences
+    # travaillent sur des indices, ce qui garde le protocole identique aux phases
+    # précédentes tout en lisant data/processed/ plutôt que le fichier brut.
+    X_train, y_train, X_test, y_test, cols = dp.get_splits()
+    X = pd.concat([X_train, X_test], ignore_index=True)
+    y = pd.concat([y_train, y_test], ignore_index=True)
+    idx_train = np.arange(len(y_train))
+    idx_test = np.arange(len(y_train), len(y))
     n_neg, n_pos = np.bincount(y.iloc[idx_train])
     spw = n_neg / n_pos
     print(f"Train {X.iloc[idx_train].shape} | scale_pos_weight={spw:.3f}\n")
