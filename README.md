@@ -1,5 +1,7 @@
 # Prédiction de retard de paiement — Pipeline MLOps
 
+[![CI](https://github.com/Abdelmoughitelhassani/Pipeline_MLOps_pred_retard_paiement/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Abdelmoughitelhassani/Pipeline_MLOps_pred_retard_paiement/actions/workflows/ci.yml)
+
 Prédiction du défaut de paiement de clients de cartes de crédit à partir de leur historique
 de facturation et de remboursement, sur le jeu de données
 [Default of Credit Card Clients (UCI)](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
@@ -10,6 +12,10 @@ engineering, comparaison systématique de modèles, tuning, choix du seuil par c
 avec versionnement des données (DVC) et traçabilité des expériences (MLflow).
 
 ## Résultats
+
+L'analyse détaillée est consignée dans le
+**[rapport complet (PDF, 31 pages)](reports/rapport_pipeline_credit_default.pdf)** :
+méthodologie, comparaison des modèles, analyse du plafond de performance et choix du seuil.
 
 | | Version 1 | Version 2 | Gain |
 |---|---|---|---|
@@ -157,6 +163,37 @@ uvicorn src.serve:app --reload --port 8000
 Documentation interactive sur `http://localhost:8000/docs`. L'API prend les **23 variables
 brutes** du dossier client et calcule les features côté serveur, via le même code qu'à
 l'entraînement — c'est ce qui garantit l'absence de décalage entraînement/service.
+
+Exemple complet — un client au comportement de paiement dégradé :
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "LIMIT_BAL": 20000, "SEX": 2, "EDUCATION": 2, "MARRIAGE": 1, "AGE": 24,
+    "PAY_1": 2, "PAY_2": 2, "PAY_3": -1, "PAY_4": -1, "PAY_5": -2, "PAY_6": -2,
+    "BILL_AMT1": 3913, "BILL_AMT2": 3102, "BILL_AMT3": 689,
+    "BILL_AMT4": 0, "BILL_AMT5": 0, "BILL_AMT6": 0,
+    "PAY_AMT1": 0, "PAY_AMT2": 689, "PAY_AMT3": 0,
+    "PAY_AMT4": 0, "PAY_AMT5": 0, "PAY_AMT6": 0
+  }'
+```
+
+Réponse :
+
+```json
+{
+  "default_probability": 0.8875,
+  "risk_level": "HIGH",
+  "threshold": 0.55,
+  "model_name": "xgboost",
+  "model_trained_at": "2026-09-09T16:45:54"
+}
+```
+
+Ce client cumule deux mois de retard consécutifs (`PAY_1` et `PAY_2` à 2) pour un plafond
+faible : le modèle lui attribue 88.75 % de probabilité de défaut, au-dessus du seuil de
+0.55, d'où le niveau `HIGH`. Un profil régulier est disponible via `GET /predict/example`.
 
 ### Conteneurisation
 
