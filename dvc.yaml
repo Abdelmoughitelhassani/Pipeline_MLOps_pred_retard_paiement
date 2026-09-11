@@ -69,9 +69,12 @@ stages:
       - cv
       - threshold
     outs:
+      # Les deux artefacts du modèle doivent voyager ensemble : `serve.py` lit le seuil
+      # de décision dans la carte, et le Dockerfile copie les deux. Déclarer la carte en
+      # `cache: false` la rendait introuvable hors de la machine qui l'avait produite —
+      # ni dans le cache DVC, ni sur le distant, ni dans git puisque models/ est ignoré.
       - models/final_model.joblib
-      - models/model_card.json:
-          cache: false
+      - models/model_card.json
 
   evaluate:
     desc: Évaluation sur le test set + seuils par coût métier
