@@ -227,6 +227,8 @@ limité à 2 CPU et 2 Go de mémoire.
 2. **Porte de qualité** — la PR-AUC de `metrics/scores.json` doit dépasser 0.54
 3. **Build et publication** — image Docker poussée sur GitHub Container Registry, puis
    vérifiée en la démarrant et en interrogeant `/health`
+4. **Déploiement** — mise en ligne sur Render, uniquement sur `main` et si
+   `RENDER_ENABLED` vaut `true` (voir *Déploiement sur Render* ci-dessous)
 
 La porte de qualité s'exécute **avant** le build : si le modèle se dégrade, aucune image
 n'est publiée. Le job Docker dépend d'elle (`needs: quality-gate`), il n'est donc même pas
@@ -235,6 +237,50 @@ lancé en cas d'échec.
 > **Secrets requis** dans *Settings → Secrets and variables → Actions* :
 > `DAGSHUB_USER` et `DAGSHUB_TOKEN`. Le modèle est suivi par DVC et absent de git ; sans
 > ces secrets, le job Docker échoue explicitement plutôt que de publier une image sans modèle.
+
+### Déploiement sur Render
+
+Le job `deploy` s'exécute après la publication de l'image, uniquement sur `main`, et
+uniquement si la variable `RENDER_ENABLED` vaut `true`. Sans ce drapeau il apparaît
+**skipped** — plutôt qu'un vert trompeur signalant un déploiement qui n'a pas eu lieu.
+
+**1. Rendre l'image accessible à Render.** Les paquets GHCR sont privés par défaut. Sur la
+page du paquet (*Profil → Packages → Pipeline_MLOps_pred_retard_paiement*), ouvrir
+*Package settings → Change visibility → Public*. Sans cela Render ne pourra pas la tirer,
+et l'erreur apparaîtra côté Render, pas dans GitHub Actions.
+
+**2. Créer le service sur Render.** *New → Web Service → Existing image*, avec :
+
+| Champ | Valeur |
+|---|---|
+| Image URL | `ghcr.io/abdelmoughitelhassani/pipeline_mlops_pred_retard_paiement:latest` |
+| Port | `8000` |
+| Health check path | `/health` |
+
+**3. Récupérer les identifiants.** L'identifiant du service se lit dans l'URL du tableau de
+bord (`https://dashboard.render.com/web/srv-XXXXXXXX`), la clé d'API se crée dans
+*Account Settings → API Keys*.
+
+**4. Déclarer les secrets et variables** dans *Settings → Secrets and variables → Actions* :
+
+| Nom | Type | Valeur |
+|---|---|---|
+| `RENDER_API_KEY` | Secret | Clé d'API Render |
+| `RENDER_SERVICE_ID` | Secret | `srv-XXXXXXXX` |
+| `RENDER_ENABLED` | Variable | `true` |
+| `RENDER_SERVICE_URL` | Variable | `https://mon-service.onrender.com` |
+
+`RENDER_SERVICE_URL` est facultative : si elle est absente, la vérification finale est
+ignorée mais le déploiement reste piloté et vérifié côté Render.
+
+Le job déclenche le déploiement via l'API REST, **interroge son statut toutes les 15
+secondes** jusqu'à un état terminal (délai maximal de 15 minutes), puis appelle `/health`
+sur l'URL publique. Un simple *deploy hook* aurait rendu la main immédiatement, sans
+permettre de savoir si le déploiement avait abouti.
+
+> **Note sur le plan gratuit** : Render met le service en veille après 15 minutes
+> d'inactivité. La première requête suivante peut prendre 30 à 60 secondes, le temps du
+> réveil — ce qui peut faire échouer la vérification `/health` si le service dormait.
 
 ### Supervision de la dérive
 

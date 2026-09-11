@@ -206,3 +206,104 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------- 4. déploiement
+  deploy:
+    name: Déploiement Render
+    runs-on: ubuntu-latest
+    needs: docker
+    # Trois conditions cumulées : uniquement sur main, uniquement sur un push (jamais
+    # depuis une pull request), et uniquement si le déploiement a été activé via la
+    # variable de dépôt RENDER_ENABLED. Sans ce drapeau le job apparaît « skipped »,
+    # ce qui est honnête — plutôt qu'un « success » vert alors que rien n'a été déployé.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.RENDER_ENABLED == 'true'
+    environment:
+      name: production
+      url: ${{ vars.RENDER_SERVICE_URL }}
+    steps:
+      - name: Vérifier la configuration
+        env:
+          API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          manquants=""
+          [ -z "$API_KEY" ]    && manquants="$manquants RENDER_API_KEY"
+          [ -z "$SERVICE_ID" ] && manquants="$manquants RENDER_SERVICE_ID"
+          if [ -n "$manquants" ]; then
+            echo "::error::Secrets manquants :$manquants — voir la section Déploiement du README"
+            exit 1
+          fi
+
+      - name: Déclencher le déploiement
+        id: trigger
+        env:
+          API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          reponse=$(curl -sS -X POST \
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "do_not_clear"}')
+
+          deploy_id=$(echo "$reponse" | jq -r '.id // empty')
+          if [ -z "$deploy_id" ]; then
+            # On n'affiche que le message d'erreur renvoyé par Render : la réponse brute
+            # pourrait contenir des éléments de configuration qu'on ne veut pas journaliser.
+            echo "::error::Render n'a pas retourné d'identifiant de déploiement : $(echo "$reponse" | jq -r '.message // "réponse inattendue"')"
+            exit 1
+          fi
+          echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+          echo "Déploiement déclenché : $deploy_id"
+
+      - name: Attendre la fin du déploiement
+        # Un POST sur l'API rend la main immédiatement : sans cette attente, le job
+        # signalerait un succès alors que la construction côté Render peut encore échouer.
+        env:
+          API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          DEPLOY_ID: ${{ steps.trigger.outputs.deploy_id }}
+        run: |
+          echeance=$((SECONDS + 900))          # 15 minutes
+          while [ $SECONDS -lt $echeance ]; do
+            statut=$(curl -sS \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID" \
+              -H "Authorization: Bearer $API_KEY" | jq -r '.status // "unknown"')
+            echo "  statut : $statut"
+
+            case "$statut" in
+              live)
+                echo "::notice::Déploiement terminé avec succès"
+                exit 0 ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "::error::Déploiement en échec (statut : $statut)"
+                exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Délai dépassé — le déploiement n'a pas abouti en 15 minutes"
+          exit 1
+
+      - name: Vérifier que le service déployé répond
+        # Dernier maillon : un déploiement « live » côté Render ne garantit pas que
+        # l'application répond correctement. On interroge /health sur l'URL publique.
+        if: vars.RENDER_SERVICE_URL != ''
+        run: |
+          url="${{ vars.RENDER_SERVICE_URL }}"
+          for i in $(seq 1 20); do
+            if curl -sf "$url/health" -o sante.json; then
+              cat sante.json
+              python -c "import json,sys; d=json.load(open('sante.json')); assert d['status']=='ok', d; print('service en ligne :', d['model_name'])"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Le service déployé ne répond pas sur $url/health"
+          exit 1
+
+      - name: Résumé
+        run: |
+          echo "### Déploiement Render" >> $GITHUB_STEP_SUMMARY
+          echo "- Déploiement : \`${{ steps.trigger.outputs.deploy_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Image : \`${{ env.REGISTRY }}/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- URL : ${{ vars.RENDER_SERVICE_URL }}" >> $GITHUB_STEP_SUMMARY
