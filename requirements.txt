@@ -1,3 +1,11 @@
+# Dependances d'entrainement (recherche). Pour servir le modele, voir
+# requirements-serve.txt, bien plus leger.
+#
+# La roue CPU de PyTorch n'existe pas sur PyPI : le suffixe +cpu est un identifiant
+# local publie uniquement sur l'index PyTorch, d'ou la ligne ci-dessous. Sans elle,
+# `pip install -r requirements.txt` echoue avec 'No matching distribution found'.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 Boruta==0.4.3
 catboost==1.2.7
 dvc==3.67.1

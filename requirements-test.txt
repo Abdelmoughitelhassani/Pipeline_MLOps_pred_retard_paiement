@@ -1,0 +1,8 @@
+# Dependances de la suite de tests. Volontairement distinctes de requirements.txt :
+# les tests ne touchent ni aux modeles profonds, ni a MLflow, ni a DVC. Installer
+# PyTorch en CI couterait plusieurs minutes et ~2 Go pour rien.
+-r requirements-serve.txt
+pytest==9.1.1
+httpx==0.28.1
+xlrd==2.0.1
+pyarrow==25.0.1

@@ -38,10 +38,13 @@ jobs:
           cache: pip
 
       - name: Installer les dépendances
+        # requirements-test.txt et non requirements.txt : les tests ne touchent ni aux
+        # modèles profonds, ni à MLflow, ni à DVC. Installer PyTorch coûterait plusieurs
+        # minutes et ~2 Go pour du code que la suite n'exécute pas.
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          pip install -r requirements-test.txt
+          pip install "dvc[http]"
 
       - name: Récupérer données et modèle (DVC)
         # Les tests portant sur les données et le service sont automatiquement ignorés
