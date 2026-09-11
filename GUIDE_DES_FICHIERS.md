@@ -113,6 +113,20 @@ Produit `monitoring/drift_report.html` (lecture humaine, non versionné car ~8 M
 `monitoring/drift_report.json` (synthèse chiffrée, versionnée pour suivre la dérive
 dans l'historique git).
 
+### Tests
+
+| Fichier | Couvre |
+|---|---|
+| `tests/test_data_prep.py` | Recodage des catégories, absence de valeurs infinies, découpage disjoint et stratifié, **équivalence entraînement/inférence**, ordre chronologique des séquences |
+| `tests/test_serve.py` | Routes du service, cohérence des seuils entre artefacts, pouvoir discriminant du modèle, rejet des entrées invalides |
+
+Chaque test verrouille un problème réellement rencontré : les infinis de `pay_ratio`, le
+décalage entraînement/service, l'incohérence possible entre les deux sources du seuil.
+
+```bash
+pytest tests/ -v
+```
+
 ### Scripts historiques (remplacés)
 
 `exp_tabular.py` et `exp_deep.py` étaient les premières versions de la comparaison de modèles.
@@ -145,6 +159,8 @@ Elles ont été interrompues par des manques de mémoire, ce qui a motivé la r�
 | `docker-compose.yml` | Orchestration : port 8000, healthcheck, limites CPU/mémoire |
 | `.dockerignore` | Exclut `.venv` (1.8 Go) et les données du contexte de build |
 | `.gitignore` | Exclut l'environnement virtuel, les caches, et les artefacts confiés à DVC |
+| `.github/workflows/ci.yml` | CI : tests, porte de qualité PR-AUC > 0.54, puis build et publication de l'image sur GHCR |
+| `metrics/scores.json` | Contrat de la porte de qualité — métriques minimales au format figé |
 
 ---
 

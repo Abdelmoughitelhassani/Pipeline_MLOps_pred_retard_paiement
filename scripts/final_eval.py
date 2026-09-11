@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -109,7 +110,23 @@ def main() -> None:
 
     cost_table.to_csv(ROOT / "reports" / "cost_thresholds.csv", index=False)
     OUT_JSON.write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+    # Contrat stable pour la porte de qualité de la CI. Volontairement séparé du rapport
+    # complet : un fichier minimal et au format figé ne casse pas le pipeline quand on
+    # enrichit `final_evaluation.json`.
+    scores = {
+        "pr_auc": round(float(pr_auc), 4),
+        "roc_auc": round(float(roc), 4),
+        "model": "xgboost",
+        "n_test": int(len(y_test)),
+        "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    scores_path = ROOT / "metrics" / "scores.json"
+    scores_path.parent.mkdir(parents=True, exist_ok=True)
+    scores_path.write_text(json.dumps(scores, indent=2), encoding="utf-8")
+
     print(f"\n-> {OUT_JSON}")
+    print(f"-> {scores_path}")
 
 
 if __name__ == "__main__":

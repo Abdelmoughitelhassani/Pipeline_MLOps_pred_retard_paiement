@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +43,51 @@ SIMULATION_ROWS = 1000
 # les traite comme numériques : un test de dérive sur des codes 1/2/3/4 n'a pas le même
 # sens qu'un test sur un montant, et le choix du test statistique en dépend.
 CATEGORICAL = ["SEX", "EDUCATION", "MARRIAGE"]
+
+
+def notify_slack(summary: dict, report_path: Path) -> str:
+    """Alerte Slack quand une dérive est détectée. Ne lève jamais.
+
+    L'URL du webhook vient de SLACK_WEBHOOK_URL et n'est jamais écrite dans le code ni
+    dans les journaux : c'est un secret qui donne le droit de publier dans le canal.
+
+    Une notification est un effet de bord accessoire : si elle échoue — variable absente,
+    réseau coupé, Slack indisponible — le contrôle de dérive lui-même reste valide et ne
+    doit pas être considéré comme en échec. D'où la capture large des exceptions.
+    """
+    webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook:
+        return "SLACK_WEBHOOK_URL non définie — notification ignorée"
+
+    top = summary.get("drifted_columns", [])[:5]
+    lignes = "\n".join(
+        f"• `{d['column']}` — score {d['score']} (seuil {d['threshold']})" for d in top
+    ) or "• (aucune colonne au-dessus du seuil)"
+
+    texte = (
+        f"*Dérive de données détectée* — modèle de scoring de défaut\n\n"
+        f"*{summary.get('n_drifted_columns')} colonnes sur "
+        f"{summary.get('n_columns_compared')}* ont dérivé "
+        f"({summary.get('share_drifted_columns', 0):.1%}, seuil d'alerte "
+        f"{summary.get('drift_share_threshold')}).\n"
+        f"Lot analysé : `{summary.get('current_source')}` "
+        f"({summary.get('current_rows')} lignes)\n"
+        f"Référence : `{summary.get('reference')}` "
+        f"({summary.get('reference_rows')} lignes)\n\n"
+        f"*Variables les plus touchées*\n{lignes}\n\n"
+        f"Rapport détaillé : `{report_path}`"
+    )
+
+    payload = json.dumps({"text": texte}).encode("utf-8")
+    request = urllib.request.Request(
+        webhook, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if response.status == 200:
+                return "notification Slack envoyée"
+            return f"Slack a répondu {response.status}"
+    except Exception as exc:                                       # noqa: BLE001
+        return f"échec de la notification Slack ({type(exc).__name__}: {exc})"
 
 
 def rel(path: Path) -> str:
@@ -145,13 +192,20 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE,
                         help="jeu de référence (défaut : data/processed/train.parquet)")
-    parser.add_argument("--current", type=Path, default=None,
-                        help="lot à contrôler ; sans cet argument, simulation sur les "
-                             f"{SIMULATION_ROWS} dernières lignes du test set")
+    # `--batch` et `--current` désignent la même chose : le lot à contrôler. Le premier
+    # est le terme naturel en exploitation, le second celui d'Evidently. Les deux sont
+    # acceptés pour ne pas imposer un vocabulaire à l'appelant.
+    parser.add_argument("--batch", "--current", dest="current", type=Path, default=None,
+                        help="lot à contrôler (Parquet ou CSV) ; sans cet argument, "
+                             f"simulation sur les {SIMULATION_ROWS} dernières lignes du test set")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT,
                         help="chemin du rapport HTML")
     parser.add_argument("--fail-on-drift", action="store_true",
                         help="code de sortie 1 si une dérive est détectée (pour CI/cron)")
+    parser.add_argument("--notify-slack", action="store_true",
+                        help="envoie une alerte Slack si une dérive est détectée. L'URL du "
+                             "webhook est lue dans SLACK_WEBHOOK_URL ; sans cette variable, "
+                             "le script continue normalement")
     parser.add_argument("--drift-share-threshold", type=float, default=0.5,
                         help="part de colonnes dérivées au-delà de laquelle on considère que "
                              "le jeu a dérivé (défaut : 0.5, convention Evidently). Sur un jeu "
@@ -216,6 +270,12 @@ def main() -> int:
             print(f"    ... et {reste} autres")
     print(f"\n  rapport  -> {rel(args.output)}")
     print(f"  synthèse -> {rel(summary_path)}")
+
+    if args.notify_slack:
+        if summary["drift_detected"]:
+            print(f"\n  Slack : {notify_slack(summary, rel(args.output))}")
+        else:
+            print("\n  Slack : aucune dérive, pas de notification")
 
     if args.fail_on_drift and summary["drift_detected"]:
         print("\n  DÉRIVE DÉTECTÉE — code de sortie 1")

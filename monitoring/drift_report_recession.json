@@ -1,0 +1,308 @@
+{
+  "drift_detected": true,
+  "n_drifted_columns": 49,
+  "share_drifted_columns": 0.7205882352941176,
+  "drifted_columns": [
+    {
+      "column": "n_months_late",
+      "score": 2.4338,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_delay_mean",
+      "score": 1.5245,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_delay_first3",
+      "score": 1.4333,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_delay_last3",
+      "score": 1.4174,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "max_utilization",
+      "score": 1.4069,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_delay_max",
+      "score": 1.372,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "unpaid_to_limit",
+      "score": 1.36,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_5",
+      "score": 1.3468,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_4",
+      "score": 1.3197,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_6",
+      "score": 1.3063,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_1",
+      "score": 1.3046,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "avg_utilization_rate",
+      "score": 1.2996,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "utilization_rate",
+      "score": 1.2658,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_3",
+      "score": 1.251,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_2",
+      "score": 1.2021,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "AGE",
+      "score": 0.9251,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "log_limit",
+      "score": 0.8486,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "LIMIT_BAL",
+      "score": 0.7076,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delta_pay_4",
+      "score": 0.6581,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_delay_std",
+      "score": 0.5871,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delta_pay_5",
+      "score": 0.5845,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "log_avg_pay",
+      "score": 0.5534,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "n_months_paid_full",
+      "score": 0.5259,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delta_pay_3",
+      "score": 0.5191,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delta_pay_2",
+      "score": 0.5038,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "avg_pay_ratio",
+      "score": 0.5012,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_ratio_2",
+      "score": 0.4624,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_ratio_1",
+      "score": 0.4547,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_ratio_3",
+      "score": 0.4412,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_ratio_5",
+      "score": 0.4352,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_ratio_4",
+      "score": 0.4151,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delta_pay_1",
+      "score": 0.396,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "ever_serious_delay",
+      "score": 0.3711,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    },
+    {
+      "column": "avg_pay_amt",
+      "score": 0.3684,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "recent_vs_past_delay",
+      "score": 0.3273,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_amt_std",
+      "score": 0.2763,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_AMT1",
+      "score": 0.2576,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "delay_acceleration",
+      "score": 0.2553,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "pay_to_limit",
+      "score": 0.2252,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_AMT4",
+      "score": 0.2143,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_AMT3",
+      "score": 0.2117,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_AMT5",
+      "score": 0.2109,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "PAY_AMT2",
+      "score": 0.2038,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "paid_full_2",
+      "score": 0.1973,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    },
+    {
+      "column": "paid_full_1",
+      "score": 0.1922,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    },
+    {
+      "column": "PAY_AMT6",
+      "score": 0.1893,
+      "threshold": 0.1,
+      "method": "Wasserstein distance (normed)"
+    },
+    {
+      "column": "paid_full_5",
+      "score": 0.188,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    },
+    {
+      "column": "paid_full_3",
+      "score": 0.1878,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    },
+    {
+      "column": "paid_full_4",
+      "score": 0.18,
+      "threshold": 0.1,
+      "method": "Jensen-Shannon distance"
+    }
+  ],
+  "drift_share_threshold": 0.15,
+  "generated_at": "2026-09-11T11:36:46+00:00",
+  "reference": "data\\processed\\train.parquet",
+  "reference_rows": 24000,
+  "current_source": "monitoring\\batch_recession.parquet",
+  "current_rows": 1000,
+  "n_columns_compared": 68
+}

@@ -1,0 +1,7 @@
+{
+  "pr_auc": 0.5645,
+  "roc_auc": 0.7822,
+  "model": "xgboost",
+  "n_test": 6000,
+  "evaluated_at": "2026-09-11T11:51:37+00:00"
+}

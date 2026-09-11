@@ -1,0 +1,184 @@
+# Intégration continue : tests, porte de qualité, puis construction et publication de l'image.
+#
+# L'ordre n'est pas décoratif. La porte de qualité s'exécute AVANT le build : publier une
+# image dont le modèle s'est dégradé serait pire que ne rien publier, car elle partirait
+# en production sans que personne ne s'en aperçoive.
+#
+# Deux secrets de dépôt sont requis pour le job `docker` :
+#   DAGSHUB_USER   nom d'utilisateur DagsHub
+#   DAGSHUB_TOKEN  jeton personnel DagsHub
+# Ils servent à récupérer le modèle, suivi par DVC et absent de git. Sans eux, ce job
+# échoue explicitement plutôt que de construire une image sans modèle.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  PR_AUC_MIN: "0.54"
+  REGISTRY: ghcr.io
+
+jobs:
+  # ---------------------------------------------------------------- 1. tests
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Récupérer données et modèle (DVC)
+        # Les tests portant sur les données et le service sont automatiquement ignorés
+        # si les artefacts sont absents ; `continue-on-error` évite de bloquer une PR
+        # externe qui n'a pas accès aux secrets, tout en exécutant ce qui est testable.
+        continue-on-error: true
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          if [ -n "$DAGSHUB_TOKEN" ]; then
+            dvc remote modify dagshub --local user "$DAGSHUB_USER"
+            dvc remote modify dagshub --local password "$DAGSHUB_TOKEN"
+            dvc pull --allow-missing
+          else
+            echo "::warning::Secrets DVC absents — les tests nécessitant données ou modèle seront ignorés"
+          fi
+
+      - name: pytest
+        run: pytest tests/ -v --tb=short
+
+  # ---------------------------------------------------------------- 2. porte de qualité
+  quality-gate:
+    name: Porte de qualité (PR-AUC)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier que la PR-AUC dépasse le seuil
+        run: |
+          if [ ! -f metrics/scores.json ]; then
+            echo "::error::metrics/scores.json absent — lancer scripts/final_eval.py et committer le résultat"
+            exit 1
+          fi
+
+          PR_AUC=$(python -c "import json; print(json.load(open('metrics/scores.json'))['pr_auc'])")
+          echo "PR-AUC mesurée : $PR_AUC"
+          echo "Seuil requis   : $PR_AUC_MIN"
+
+          if python -c "import sys; sys.exit(0 if $PR_AUC > $PR_AUC_MIN else 1)"; then
+            echo "::notice::Porte de qualité franchie ($PR_AUC > $PR_AUC_MIN)"
+            echo "### Porte de qualité franchie" >> $GITHUB_STEP_SUMMARY
+            echo "PR-AUC **$PR_AUC** > seuil **$PR_AUC_MIN**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::error::Modèle dégradé : PR-AUC $PR_AUC <= $PR_AUC_MIN — déploiement annulé"
+            echo "### Porte de qualité ÉCHOUÉE" >> $GITHUB_STEP_SUMMARY
+            echo "PR-AUC **$PR_AUC** <= seuil **$PR_AUC_MIN**. Aucune image ne sera publiée." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------- 3. build et publication
+  docker:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    # `needs` fait toute la garantie demandée : si la porte de qualité échoue, ce job
+    # n'est jamais lancé et rien n'est publié.
+    needs: quality-gate
+    # Une pull request construit l'image pour vérifier que le Dockerfile tient, mais ne
+    # publie rien : seuls les pushs sur main alimentent le registre.
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Récupérer le modèle (DVC)
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          if [ -z "$DAGSHUB_TOKEN" ]; then
+            echo "::error::Secrets DAGSHUB_USER et DAGSHUB_TOKEN requis pour récupérer le modèle"
+            exit 1
+          fi
+          pip install "dvc[http]"
+          dvc remote modify dagshub --local user "$DAGSHUB_USER"
+          dvc remote modify dagshub --local password "$DAGSHUB_TOKEN"
+          dvc pull models/final_model.joblib models/model_card.json
+
+      - name: Vérifier que le modèle est bien présent
+        # Sans ce contrôle, le COPY du Dockerfile échouerait avec un message obscur.
+        run: |
+          test -f models/final_model.joblib || { echo "::error::modèle absent après dvc pull"; exit 1; }
+          test -f models/model_card.json    || { echo "::error::carte du modèle absente"; exit 1; }
+          ls -lh models/
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Authentification au registre GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Métadonnées de l'image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=short
+
+      - name: Construire et publier
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Vérifier que l'image répond
+        # Publier une image qui ne démarre pas serait un faux succès : on la relance et
+        # on interroge /health avant de considérer le déploiement réussi.
+        run: |
+          IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          docker run -d --name verif -p 8000:8000 "$IMAGE"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8000/health | tee /tmp/health.json
+          python -c "import json; d=json.load(open('/tmp/health.json')); assert d['status']=='ok', d; print('service opérationnel')"
+          docker rm -f verif
+
+      - name: Résumé
+        run: |
+          echo "### Image publiée" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

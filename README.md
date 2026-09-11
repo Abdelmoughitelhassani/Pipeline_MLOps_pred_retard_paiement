@@ -182,12 +182,34 @@ limité à 2 CPU et 2 Go de mémoire.
 > route les appels à `127.0.0.1:8000` de préférence au conteneur (liaison plus spécifique).
 > Arrêter le serveur local, ou publier le conteneur sur un autre port.
 
+### Intégration continue
+
+À chaque push sur `main`, `.github/workflows/ci.yml` enchaîne :
+
+1. **Tests** — `pytest tests/` (19 tests)
+2. **Porte de qualité** — la PR-AUC de `metrics/scores.json` doit dépasser 0.54
+3. **Build et publication** — image Docker poussée sur GitHub Container Registry, puis
+   vérifiée en la démarrant et en interrogeant `/health`
+
+La porte de qualité s'exécute **avant** le build : si le modèle se dégrade, aucune image
+n'est publiée. Le job Docker dépend d'elle (`needs: quality-gate`), il n'est donc même pas
+lancé en cas d'échec.
+
+> **Secrets requis** dans *Settings → Secrets and variables → Actions* :
+> `DAGSHUB_USER` et `DAGSHUB_TOKEN`. Le modèle est suivi par DVC et absent de git ; sans
+> ces secrets, le job Docker échoue explicitement plutôt que de publier une image sans modèle.
+
 ### Supervision de la dérive
 
 ```bash
 python monitoring/drift_report.py                                  # simulation
-python monitoring/drift_report.py --current lot.parquet --fail-on-drift
+python monitoring/drift_report.py --batch lot.parquet --fail-on-drift
+python monitoring/drift_report.py --batch lot.parquet --notify-slack
 ```
+
+`--notify-slack` publie un résumé (nombre de colonnes dérivées, top 5 des variables, lien
+vers le rapport) via le webhook lu dans `SLACK_WEBHOOK_URL`. Sans cette variable, le script
+continue normalement — et une notification qui échoue ne fait jamais échouer le contrôle.
 
 Compare chaque variable d'un lot entrant à sa distribution dans le jeu d'entraînement.
 Produit un rapport HTML lisible et une synthèse JSON exploitable par une supervision.
