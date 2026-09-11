@@ -64,7 +64,28 @@ jobs:
           fi
 
       - name: pytest
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --junitxml=report.xml
+
+      - name: Vérifier qu'au moins un test s'est réellement exécuté
+        # Sans ce contrôle, un job vert peut ne rien avoir vérifié : les tests qui
+        # dépendent des données ou du modèle s'ignorent d'eux-mêmes quand ces artefacts
+        # sont absents, et pytest sort alors en succès. Un feu vert vide est pire qu'un
+        # feu rouge, puisqu'il inspire une confiance infondée.
+        run: |
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          suite = ET.parse("report.xml").getroot().find("testsuite")
+          total = int(suite.get("tests", 0))
+          ignores = int(suite.get("skipped", 0))
+          executes = total - ignores
+          print(f"{executes} test(s) exécuté(s), {ignores} ignoré(s) sur {total}")
+          if executes == 0:
+              print("::error::Aucun test n'a été exécuté — job vert sans vérification réelle")
+              sys.exit(1)
+          if ignores:
+              print(f"::warning::{ignores} test(s) ignorés faute de données ou de modèle. "
+                    "Configurer DAGSHUB_USER et DAGSHUB_TOKEN pour exécuter la suite complète.")
+          PY
 
   # ---------------------------------------------------------------- 2. porte de qualité
   quality-gate:

@@ -16,7 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 import data_prep as dp  # noqa: E402
 
-pytestmark = pytest.mark.skipif(
+# Le marqueur ne porte QUE sur les tests ayant besoin du fichier de données. Les tests
+# purement logiques doivent s'exécuter partout, y compris en CI sans accès au stockage
+# distant : un job vert qui aurait tout ignoré ne vérifierait rien.
+besoin_donnees = pytest.mark.skipif(
     not dp.DEFAULT_DATA_PATH.exists(),
     reason="données brutes absentes — lancer `dvc pull`")
 
@@ -37,6 +40,7 @@ def test_remap_fusionne_les_codes_non_documentes():
     assert out["MARRIAGE"].iloc[0] == 3
 
 
+@besoin_donnees
 def test_aucune_valeur_non_finie(tabular):
     """Régression : `pay_ratio` divisait par une facture pouvant valoir zéro et
     produisait des infinis, ce qui faisait planter StandardScaler en aval."""
@@ -44,6 +48,7 @@ def test_aucune_valeur_non_finie(tabular):
     assert np.isfinite(X.to_numpy()).all()
 
 
+@besoin_donnees
 def test_dimensions_et_cible(tabular):
     X, y, cols = tabular
     assert X.shape == (30000, 68)
@@ -52,6 +57,7 @@ def test_dimensions_et_cible(tabular):
     assert 0.21 < y.mean() < 0.23          # ~22.12 % de défauts
 
 
+@besoin_donnees
 def test_split_disjoint_et_stratifie(tabular):
     """Un chevauchement train/test invaliderait toutes les métriques du projet."""
     _, y, _ = tabular
@@ -62,6 +68,7 @@ def test_split_disjoint_et_stratifie(tabular):
     assert ecart < 0.005
 
 
+@besoin_donnees
 def test_inference_identique_a_entrainement(tabular):
     """Invariant central : le chemin d'inférence doit produire exactement les mêmes
     features que l'entraînement. Tout écart serait un training/serving skew, c'est-à-dire
@@ -80,6 +87,7 @@ def test_inference_refuse_les_colonnes_manquantes():
         dp.prepare_inference(incomplet)
 
 
+@besoin_donnees
 def test_sequences_en_ordre_chronologique():
     """Le fichier numérote les mois à l'envers (indice 1 = le plus récent). Les donner
     tels quels à un RNN lui ferait lire l'histoire à rebours."""
